@@ -1,0 +1,11 @@
+# VS files
+.vs/
+.vscode/
+*.csproj.user
+
+# Output files
+bin
+obj
+node_modules
+wwwroot
+out
