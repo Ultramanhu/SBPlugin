@@ -1,0 +1,9 @@
+[submodule "SmallBasicRepo/SmallBasicOnline"]
+	path = SmallBasicRepo/SmallBasicOnline
+	url = git@github.com:sb/SmallBasic-Online.git
+[submodule "SmallBasicRepo/SmallBasicEditor"]
+	path = SmallBasicRepo/SmallBasicEditor
+	url = git@github.com:sb/smallbasic-editor.git
+[submodule "SmallBasicRepo/SmallBasicHomeSite"]
+	path = SmallBasicRepo/SmallBasicHomeSite
+	url = git@github.com:sb/SmallBasicWebsite.git
