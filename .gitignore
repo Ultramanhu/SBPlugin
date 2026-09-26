@@ -7,6 +7,7 @@
 # ai file
 .tmp
 .kilo
+*.log
 
 # Output files
 bin
