@@ -41,7 +41,9 @@ try
         switch (engine.State)
         {
             case ExecutionState.Running:
+#if GRAPHICS_HOST
                 libraries.GraphicsWindow?.DispatchPendingEvents();
+#endif
                 await engine.Execute().ConfigureAwait(false);
                 break;
             case ExecutionState.BlockedOnStringInput:

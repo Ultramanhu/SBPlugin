@@ -15,18 +15,31 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
         this.Dictionary = new DictionaryLibrary();
         this.File = new UnsupportedFileLibrary();
         this.Flickr = new UnsupportedFlickrLibrary();
+#if GRAPHICS_HOST
         this.GraphicsWindow = enableGraphics ? new GraphicsWindowLibrary() : null;
         this.GraphicsWindowImplementation = this.GraphicsWindow != null
             ? this.GraphicsWindow
             : new UnsupportedGraphicsWindowLibrary();
+#else
+        this.GraphicsWindowImplementation = new UnsupportedGraphicsWindowLibrary();
+#endif
         this.ImageList = new UnsupportedImageListLibrary();
         this.Math = new MathLibrary();
         this.Mouse = new UnsupportedMouseLibrary();
         this.Network = new UnsupportedNetworkLibrary();
-        this.Program = new ProgramLibrary(this.GraphicsWindow);
-        this.ShapesImplementation = this.GraphicsWindow == null
-            ? new UnsupportedShapesLibrary()
-            : new ShapesLibrary();
+        this.Program =
+#if GRAPHICS_HOST
+            new ProgramLibrary(this.GraphicsWindow);
+#else
+            new ProgramLibrary();
+#endif
+        this.ShapesImplementation = new UnsupportedShapesLibrary();
+#if GRAPHICS_HOST
+        if (this.GraphicsWindow != null)
+        {
+            this.ShapesImplementation = new ShapesLibrary();
+        }
+#endif
         this.Sound = new UnsupportedSoundLibrary();
         this.Stack = new StackLibrary();
         this.Text = new TextLibrary();
@@ -49,7 +62,9 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
 
     private UnsupportedFlickrLibrary Flickr { get; }
 
+#if GRAPHICS_HOST
     public GraphicsWindowLibrary? GraphicsWindow { get; }
+#endif
 
     private IGraphicsWindowLibrary GraphicsWindowImplementation { get; }
 
@@ -120,6 +135,8 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
     public void Dispose()
     {
         this.Timer.Dispose();
+#if GRAPHICS_HOST
         this.GraphicsWindow?.Dispose();
+#endif
     }
 }

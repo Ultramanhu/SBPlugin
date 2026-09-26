@@ -534,7 +534,3 @@ Sub SetupTemplates
   Array.SetValue("template7", "pviewx", 0)
   Array.SetValue("template7", "pviewy", 0)
 EndSub
-
-
-
-

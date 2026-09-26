@@ -134,30 +134,12 @@ namespace SmallBasic.Vsix.Commands
         {
             try
             {
-                if (!this.TrySaveAndValidate(document))
+                if (!this.TrySaveAndCompile(document, out _))
                 {
                     return;
                 }
 
-                string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicRunCommandFilter).Assembly.Location) ?? string.Empty;
-                string runHostPath = Path.Combine(extensionDirectory, "RunHost", "SmallBasic.RunHost.exe");
-                if (!File.Exists(runHostPath))
-                {
-                    MessageBox.Show(
-                        $"未找到 Small Basic 运行宿主：{runHostPath}",
-                        "Small Basic",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-                    return;
-                }
-
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = runHostPath,
-                    Arguments = $"run --file \"{document.FilePath}\" --pause",
-                    WorkingDirectory = Path.GetDirectoryName(document.FilePath) ?? extensionDirectory,
-                    UseShellExecute = true,
-                });
+                this.StartRunHost(document.FilePath);
             }
             catch (Exception ex)
             {
@@ -173,8 +155,19 @@ namespace SmallBasic.Vsix.Commands
         {
             try
             {
-                if (!this.TrySaveAndValidate(document))
+                if (!this.TrySaveAndCompile(document, out SmallBasicCompilation? compilation))
                 {
+                    return;
+                }
+
+                if (compilation!.Analysis.UsesGraphicsWindow)
+                {
+                    MessageBox.Show(
+                        "图形程序当前暂不支持调试模式，已自动改为直接运行。",
+                        "Small Basic",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    this.StartRunHost(document.FilePath);
                     return;
                 }
 
@@ -190,11 +183,12 @@ namespace SmallBasic.Vsix.Commands
             }
         }
 
-        private bool TrySaveAndValidate(ITextDocument document)
+        private bool TrySaveAndCompile(ITextDocument document, out SmallBasicCompilation? compilation)
         {
+            compilation = null;
             document.Save();
 
-            var compilation = new SmallBasicCompilation(this.textView.TextBuffer.CurrentSnapshot.GetText());
+            compilation = new SmallBasicCompilation(this.textView.TextBuffer.CurrentSnapshot.GetText());
             if (compilation.Diagnostics.Count == 0)
             {
                 return true;
@@ -209,6 +203,29 @@ namespace SmallBasic.Vsix.Commands
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             return false;
+        }
+
+        private void StartRunHost(string filePath)
+        {
+            string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicRunCommandFilter).Assembly.Location) ?? string.Empty;
+            string runHostPath = Path.Combine(extensionDirectory, "RunHost", "SmallBasic.RunHost.exe");
+            if (!File.Exists(runHostPath))
+            {
+                MessageBox.Show(
+                    $"未找到 Small Basic 运行宿主：{runHostPath}",
+                    "Small Basic",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = runHostPath,
+                Arguments = $"run --file \"{filePath}\" --pause",
+                WorkingDirectory = Path.GetDirectoryName(filePath) ?? extensionDirectory,
+                UseShellExecute = true,
+            });
         }
     }
 }

@@ -60,6 +60,8 @@ export class SmallBasicTerminalSession implements vscode.Pseudoterminal, ITextWi
   private scheduled = false;
   private disposed = false;
   private pendingInputKind: ValueKind | undefined;
+  private waitingForExitConfirmation = false;
+  private exitCode = 0;
   private foreground = TextWindowColor.White;
   private background = TextWindowColor.Black;
 
@@ -85,6 +87,13 @@ export class SmallBasicTerminalSession implements vscode.Pseudoterminal, ITextWi
 
   public handleInput(data: string): void {
     if (this.disposed) {
+      return;
+    }
+
+    if (this.waitingForExitConfirmation) {
+      if (data === "\r") {
+        this.closeEmitter.fire(this.exitCode);
+      }
       return;
     }
 
@@ -176,19 +185,25 @@ export class SmallBasicTerminalSession implements vscode.Pseudoterminal, ITextWi
         if (this.engine.exception) {
           this.writeEmitter.fire(this.colorize(`\r\n[Runtime Error] ${this.engine.exception.toString()}\r\n`));
         }
-        this.closeEmitter.fire(0);
+        this.pauseBeforeClose(0);
         break;
       case ExecutionState.Paused:
         this.schedule(10);
         break;
       default:
-        this.closeEmitter.fire(1);
+        this.pauseBeforeClose(1);
         break;
     }
   }
 
   private colorize(text: string): string {
     return `\u001b[${ansiForeground[this.foreground]};${ansiBackground[this.background]}m${text}\u001b[0m`;
+  }
+
+  private pauseBeforeClose(exitCode: number): void {
+    this.waitingForExitConfirmation = true;
+    this.exitCode = exitCode;
+    this.writeEmitter.fire(this.colorize("\r\n[Program finished] 按 Enter 关闭终端...\r\n"));
   }
 }
 

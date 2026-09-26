@@ -7678,24 +7678,29 @@ var CompletionService;
   function provideCompletion(compilation, position) {
     const objectAccessExpression = compilation.getSyntaxNode(position, 24 /* ObjectAccessExpression */);
     if (objectAccessExpression) {
-      const visitor = new CompletionVisitor();
+      const visitor = new CompletionVisitor(compilation);
       visitor.visit(objectAccessExpression);
       return visitor.results;
     }
     const identifierExpression = compilation.getSyntaxNode(position, 29 /* IdentifierExpression */);
     if (identifierExpression) {
-      const visitor = new CompletionVisitor();
+      const visitor = new CompletionVisitor(compilation);
       visitor.visit(identifierExpression);
       return visitor.results;
     }
     if (!compilation.text.trim()) {
-      return getResultsBeforeDot("");
+      return getResultsBeforeDot("", compilation);
     }
     const wordAtCursor = extractWordAtPosition(compilation.text, position);
-    return getResultsBeforeDot(wordAtCursor);
+    return getResultsBeforeDot(wordAtCursor, compilation);
   }
   CompletionService2.provideCompletion = provideCompletion;
   class CompletionVisitor extends SyntaxNodeVisitor {
+    constructor(compilation) {
+      super();
+      this.compilation = compilation;
+    }
+    compilation;
     _allResults = [];
     get results() {
       return this._allResults;
@@ -7747,11 +7752,20 @@ var CompletionService;
     }
     visitIdentifierExpression(node) {
       const libraryName = node.identifierToken.token.text;
-      this._allResults = getResultsBeforeDot(libraryName);
+      this._allResults = getResultsBeforeDot(libraryName, this.compilation);
     }
   }
-  function getResultsBeforeDot(prefix) {
+  function getResultsBeforeDot(prefix, compilation) {
     const results = [];
+    collectVariablesAndSubModules(compilation).forEach((name) => {
+      if (CompilerUtils.stringStartsWith(name, prefix)) {
+        results.push({
+          title: name,
+          description: name,
+          kind: name in compilation.boundSubModules ? 1 /* Method */ : 2 /* Property */
+        });
+      }
+    });
     CompilerUtils.values(RuntimeLibraries.Metadata).forEach((library) => {
       if (CompilerUtils.stringStartsWith(library.typeName, prefix)) {
         results.push({
@@ -7767,6 +7781,60 @@ var CompletionService;
       }
     });
     return results;
+  }
+  function collectVariablesAndSubModules(compilation) {
+    const names = [];
+    const seen = /* @__PURE__ */ new Set();
+    const add = (name) => {
+      const key = name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        names.push(name);
+      }
+    };
+    for (const [name, module2] of Object.entries(compilation.boundSubModules)) {
+      if (name !== "<Main>") {
+        add(name);
+      }
+      visit(module2, add);
+    }
+    return names;
+  }
+  function visit(node, add) {
+    switch (node.kind) {
+      case 10 /* VariableAssignmentStatement */:
+        add(node.variableName);
+        break;
+      case 12 /* ArrayAssignmentStatement */:
+        add(node.arrayName);
+        break;
+      case 8 /* LibraryMethodInvocationStatement */:
+        collectArrayLibraryName(node, add);
+        break;
+      case 32 /* LibraryMethodInvocationExpression */:
+        collectArrayLibraryName(node, add);
+        break;
+      default:
+        break;
+    }
+    node.children().forEach((child) => visit(child, add));
+  }
+  function collectArrayLibraryName(node, add) {
+    if (node.libraryName.toLowerCase() !== "array") {
+      return;
+    }
+    switch (node.methodName.toLowerCase()) {
+      case "setvalue":
+      case "getvalue":
+      case "removevalue":
+        break;
+      default:
+        return;
+    }
+    const [firstArgument] = node.argumentsList;
+    if (firstArgument?.kind === 36 /* StringLiteralExpression */) {
+      add(firstArgument.value);
+    }
   }
   function keywordSnippets() {
     return [

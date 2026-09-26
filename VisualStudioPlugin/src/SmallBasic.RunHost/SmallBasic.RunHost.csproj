@@ -1,14 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
-    <UseWPF>true</UseWPF>
+    <!--
+      net48 / net8.0-windows : Windows desktop hosts with WPF graphics support.
+      net8.0                  : portable, text-only host (runs on Windows/Linux/macOS).
+    -->
+    <TargetFrameworks>net48;net8.0;net8.0-windows</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48' or '$(TargetFramework)' == 'net8.0-windows'">
+    <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);GRAPHICS_HOST</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48' or '$(TargetFramework)' == 'net8.0-windows'">
     <PackageReference Include="SmallBasic" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <Compile Remove="Libraries\GraphicsWindowLibrary.cs" />
+    <Compile Remove="Libraries\ShapesLibrary.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
   </ItemGroup>

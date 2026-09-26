@@ -4,16 +4,24 @@ namespace SmallBasic.RunHost.Libraries;
 
 public sealed class ProgramLibrary : IProgramLibrary
 {
+#if GRAPHICS_HOST
     private readonly GraphicsWindowLibrary? graphicsWindow;
 
     public ProgramLibrary(GraphicsWindowLibrary? graphicsWindow = null)
     {
         this.graphicsWindow = graphicsWindow;
     }
+#else
+    public ProgramLibrary()
+    {
+    }
+#endif
 
     public Task Delay(decimal milliSeconds)
     {
+#if GRAPHICS_HOST
         this.graphicsWindow?.DispatchPendingEvents();
+#endif
         var delay = Math.Max(0, (int)milliSeconds);
         return Task.Delay(delay);
     }

@@ -37,14 +37,37 @@ $debugAdapterStaging = Join-Path $stagingRoot "DebugAdapter"
 New-Item -ItemType Directory -Path $debugAdapterStaging -Force | Out-Null
 Copy-Item -LiteralPath $debugAdapterSource -Destination (Join-Path $debugAdapterStaging "adapter.js") -Force
 
+# [Content_Types].xml must declare EVERY file extension present in the package.
+# OPC-based VSIX installers silently skip parts whose extension has no declared
+# content type - a hardcoded list here once dropped DebugAdapter\adapter.js and
+# RunHost\SmallBasic.RunHost.exe.config (and with them whole subfolders) from
+# the installed extension.
+$contentTypes = @(
+    "vsixmanifest", "json", "xml", "dll", "exe", "pdb", "js", "config", "txt"
+)
+$knownContentTypes = @{
+    "vsixmanifest" = "text/xml"
+    "json"         = "application/json"
+    "xml"          = "text/xml"
+    "js"           = "application/javascript"
+    "config"       = "application/xml"
+    "txt"          = "text/plain"
+}
+
+$stagedExtensions = Get-ChildItem -LiteralPath $stagingRoot -Recurse -File |
+    ForEach-Object { $_.Extension.TrimStart(".").ToLowerInvariant() } |
+    Where-Object { $_ } |
+    Sort-Object -Unique
+
+$defaultEntries = foreach ($extension in (@($contentTypes) + $stagedExtensions | Sort-Object -Unique)) {
+    $contentType = if ($knownContentTypes.ContainsKey($extension)) { $knownContentTypes[$extension] } else { "application/octet-stream" }
+    "  <Default Extension=`"$extension`" ContentType=`"$contentType`" />"
+}
+
 @"
 <?xml version="1.0" encoding="utf-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="vsixmanifest" ContentType="text/xml" />
-  <Default Extension="json" ContentType="application/json" />
-  <Default Extension="dll" ContentType="application/octet-stream" />
-  <Default Extension="exe" ContentType="application/octet-stream" />
-  <Default Extension="pdb" ContentType="application/octet-stream" />
+$defaultEntries
 </Types>
 "@ | Set-Content -LiteralPath (Join-Path $stagingRoot "[Content_Types].xml") -Encoding UTF8
 
@@ -91,7 +114,10 @@ $fileEntries = @(Get-ChildItem -LiteralPath $stagingRoot -Recurse -File |
     Where-Object { $_.Name -ne "manifest.json" } |
     Sort-Object FullName |
     ForEach-Object {
-        $relative = $_.FullName.Substring($stagingRootFull.Length).Replace("\", "/")
+        # VS2026's ExtensionEngine matches manifest.json entries against zip part
+        # names verbatim; zip part names have no leading slash, so a leading "/"
+        # made every subfolder entry (RunHost\, DebugAdapter\) fail to install.
+        $relative = $_.FullName.Substring($stagingRootFull.Length).Replace("\", "/").TrimStart("/")
         [ordered]@{
             fileName = $relative
             sha256   = $null
@@ -119,6 +145,44 @@ if (Test-Path $tempZip) {
     Remove-Item -LiteralPath $tempZip -Force
 }
 
-Compress-Archive -Path (Join-Path $stagingRoot "*") -DestinationPath $tempZip -Force
+# Zip entry names must use forward slashes per the zip spec. Compress-Archive
+# and .NET Framework's ZipFile.CreateFromDirectory (Windows PowerShell 5.1)
+# write backslash-separated entries, and VS2026's ExtensionEngine then cannot
+# match manifest.json subfolder entries (RunHost/..., DebugAdapter/...) against
+# package parts and silently skips them during install. Build the archive
+# entry-by-entry with explicit forward-slash names so the layout is correct on
+# any PowerShell host.
+Add-Type -AssemblyName System.IO.Compression
+$stagingFiles = @(Get-ChildItem -LiteralPath $stagingRoot -Recurse -File)
+$fileStream = [System.IO.File]::Open($tempZip, [System.IO.FileMode]::CreateNew)
+try {
+    $archive = New-Object System.IO.Compression.ZipArchive($fileStream, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in $stagingFiles) {
+            $entryName = $file.FullName.Substring($stagingRootFull.Length).Replace("\", "/").TrimStart("/")
+            $entry = $archive.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+            $entryStream = $entry.Open()
+            try {
+                $sourceStream = [System.IO.File]::OpenRead($file.FullName)
+                try {
+                    $sourceStream.CopyTo($entryStream)
+                }
+                finally {
+                    $sourceStream.Dispose()
+                }
+            }
+            finally {
+                $entryStream.Dispose()
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+finally {
+    $fileStream.Dispose()
+}
+
 Move-Item -LiteralPath $tempZip -Destination $packagePath -Force
 Write-Host "VSIX package created: $packagePath"

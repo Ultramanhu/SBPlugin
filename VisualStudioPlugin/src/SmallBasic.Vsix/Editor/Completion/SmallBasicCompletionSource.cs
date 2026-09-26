@@ -3,6 +3,7 @@ namespace SmallBasic.Vsix.Editor.Completion
     using System;
     using System.Collections.Generic;
     using System.Collections.Immutable;
+    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.VisualStudio.Language.Intellisense;
@@ -17,6 +18,8 @@ namespace SmallBasic.Vsix.Editor.Completion
 
     internal sealed class SmallBasicCompletionSource : IAsyncCompletionSource
     {
+        private static readonly Regex MonacoSnippetPlaceholderPattern = new Regex(@"\$\{\d+:([^}]+)\}", RegexOptions.Compiled);
+
         private readonly ITextView textView;
         private readonly SmallBasicCompilationService compilationService;
         private IReadOnlyDictionary<string, string> details = ImmutableDictionary<string, string>.Empty;
@@ -97,6 +100,12 @@ namespace SmallBasic.Vsix.Editor.Completion
             {
                 string label = string.IsNullOrEmpty(item.label) ? string.Empty : item.label;
                 string insertText = string.IsNullOrEmpty(item.insertText?.value) ? label : item.insertText.value;
+                bool isSnippet = insertText.Contains("${", StringComparison.Ordinal);
+                if (isSnippet)
+                {
+                    insertText = ConvertSnippetSyntax(insertText);
+                }
+
                 builder.Add(new CompletionItem(
                     label,
                     this,
@@ -107,7 +116,11 @@ namespace SmallBasic.Vsix.Editor.Completion
                     label,
                     label,
                     label,
-                    ImmutableArray<ImageElement>.Empty));
+                    ImmutableArray<ImageElement>.Empty,
+                    ImmutableArray<char>.Empty,
+                    applicableToSpan,
+                    isSnippet,
+                    false));
 
                 if (!string.IsNullOrEmpty(item.detail))
                 {
@@ -123,6 +136,25 @@ namespace SmallBasic.Vsix.Editor.Completion
         {
             return Task.FromResult<object>(
                 this.details.TryGetValue(item.DisplayText, out string? detail) ? detail! : item.DisplayText);
+        }
+
+        private static string ConvertSnippetSyntax(string insertText)
+        {
+            string converted = MonacoSnippetPlaceholderPattern.Replace(insertText, match =>
+            {
+                string placeholder = match.Groups[1].Value;
+                return "$" + SanitizePlaceholderName(placeholder) + "$";
+            });
+
+            return converted.Contains("$end$", StringComparison.Ordinal)
+                ? converted
+                : converted + "$end$";
+        }
+
+        private static string SanitizePlaceholderName(string placeholder)
+        {
+            string sanitized = Regex.Replace(placeholder, @"[^A-Za-z0-9_]", string.Empty);
+            return string.IsNullOrEmpty(sanitized) ? "value" : sanitized;
         }
     }
 }

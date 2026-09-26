@@ -1,6 +1,6 @@
 {
   "name": "smallbasic-vscode",
-  "displayName": "SmallBasic",
+  "displayName": "SmallBasic for VSCode",
   "description": "SmallBasic language support for VSCode.",
   "version": "0.1.0",
   "publisher": "smallbasic",
@@ -26,8 +26,13 @@
     "languages": [
       {
         "id": "smallbasic",
-        "aliases": ["SmallBasic", "smallbasic"],
-        "extensions": [".sb"],
+        "aliases": [
+          "SmallBasic",
+          "smallbasic"
+        ],
+        "extensions": [
+          ".sb"
+        ],
         "configuration": "./language-configuration.json",
         "icon": {
           "light": "./media/SmallBasic.svg",
@@ -88,15 +93,28 @@
       {
         "type": "smallbasic",
         "label": "SmallBasic",
-        "languages": ["smallbasic"],
+        "languages": [
+          "smallbasic"
+        ],
         "configurationAttributes": {
           "launch": {
-            "required": ["program"],
+            "required": [
+              "program"
+            ],
             "properties": {
               "program": {
                 "type": "string",
                 "description": "Path to the SmallBasic program.",
                 "default": "${file}"
+              },
+              "backend": {
+                "type": "string",
+                "enum": [
+                  "javascript",
+                  "csharp"
+                ],
+                "default": "javascript",
+                "description": "Backend to launch. javascript uses the built-in JS debugger; csharp runs SmallBasic.RunHost.exe (Windows only, run-only)."
               },
               "stopOnEntry": {
                 "type": "boolean",
@@ -108,12 +126,24 @@
         },
         "configurationSnippets": [
           {
-            "label": "SmallBasic: Launch current file",
+            "label": "SmallBasic: Launch current file (JS debugger)",
             "body": {
               "type": "smallbasic",
               "request": "launch",
-              "name": "SmallBasic: Launch current file",
+              "name": "SmallBasic: Launch current file (JS debugger)",
               "program": "${file}",
+              "backend": "javascript",
+              "stopOnEntry": false
+            }
+          },
+          {
+            "label": "SmallBasic: Run current file with C# backend (Windows)",
+            "body": {
+              "type": "smallbasic",
+              "request": "launch",
+              "name": "SmallBasic: Run current file with C# backend",
+              "program": "${file}",
+              "backend": "csharp",
               "stopOnEntry": false
             }
           }
@@ -146,4 +176,3 @@
     "smallbasic-lang-core": "0.1.0"
   }
 }
-

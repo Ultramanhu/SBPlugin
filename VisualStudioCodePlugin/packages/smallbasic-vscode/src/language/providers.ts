@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import {
   Compilation,
   CompletionService,
+  CompilerPosition,
   CompilerUtils,
   Diagnostic,
   HoverService,
@@ -10,6 +11,7 @@ import {
 } from "smallbasic-lang-core";
 import { CompilationCache } from "./compilation-cache";
 import { getCompletionSpan } from "./completion-span";
+import { getContextualCompletions, type RankedCompletion } from "./contextual-completions";
 import { toCompilerPosition, toVsCodeRange } from "../util/positions";
 
 const semanticTokenTypes = [
@@ -71,6 +73,20 @@ function mapCompletionKind(kind: CompletionService.ResultKind): vscode.Completio
   }
 }
 
+let lazyEmptyCompilation: Compilation | undefined;
+
+function emptyCompilation(): Compilation {
+  if (!lazyEmptyCompilation) {
+    lazyEmptyCompilation = new Compilation("");
+  }
+
+  return lazyEmptyCompilation;
+}
+
+function baselineCompletions(): CompletionService.Result[] {
+  return CompletionService.provideCompletion(emptyCompilation(), new CompilerPosition(0, 0));
+}
+
 export function registerLanguageFeatures(
     context: vscode.ExtensionContext,
     cache: CompilationCache,
@@ -82,9 +98,17 @@ export function registerLanguageFeatures(
             {
                 provideCompletionItems(document, position) {
                     const compilation = cache.get(document);
-                    const results = CompletionService.provideCompletion(compilation, toCompilerPosition(position));
                     const lineText = document.lineAt(position.line).text;
                     const span = getCompletionSpan(lineText, position.character);
+                    const prefix = lineText.slice(span.start, position.character);
+                    const results = CompletionService.provideCompletion(compilation, toCompilerPosition(position));
+                    const sourceBeforeCursor = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
+                    const isMemberAccess = span.start > 0 && lineText[span.start - 1] === ".";
+                    const contextual = isMemberAccess ? [] : getContextualCompletions(sourceBeforeCursor, prefix);
+                    const baseline = results.length === 0 && prefix.length === 0
+                      ? baselineCompletions().map((item) => ({ item, priority: 20 } satisfies RankedCompletion))
+                      : [];
+                    const combined = dedupeCompletions([...contextual, ...results.map((item) => ({ item, priority: 10 } satisfies RankedCompletion)), ...baseline]);
                     const replacing = new vscode.Range(position.line, span.start, position.line, span.end);
                     // VS Code requires both ranges to contain the caret.  A zero-width
                     // inserting range at the start of an existing prefix is rejected and
@@ -92,12 +116,14 @@ export function registerLanguageFeatures(
                     const inserting = new vscode.Range(new vscode.Position(position.line, span.start), position);
 
                     return new vscode.CompletionList(
-                        results.map((item) => {
+                        combined.map(({ item, priority, preselect }) => {
                             const kind = mapCompletionKind(item.kind);
                             const completion = new vscode.CompletionItem(item.title, kind);
                             completion.detail = item.description;
                             completion.filterText = item.title;
                             completion.range = { inserting, replacing };
+                            completion.sortText = `${priority.toString().padStart(2, "0")}_${item.title}`;
+                            completion.preselect = !!preselect;
                             if (item.insertText !== undefined) {
                                 completion.insertText = new vscode.SnippetString(item.insertText);
                             } else {
@@ -204,5 +230,22 @@ function mapTokenType(compilation: Compilation, kind: TokenKind, text: string): 
     default:
       return undefined;
   }
+}
+
+function dedupeCompletions(items: RankedCompletion[]): RankedCompletion[] {
+  const seen = new Set<string>();
+  const deduped: RankedCompletion[] = [];
+
+  for (const item of items) {
+    const key = item.item.title.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  return deduped;
 }
 

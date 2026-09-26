@@ -1,11 +1,11 @@
 import path from "node:path";
 import * as vscode from "vscode";
 import { Compilation } from "smallbasic-lang-core";
-import { CompilationCache } from "./language/compilation-cache";
 import { SmallBasicDebugAdapterFactory } from "./debug/factory";
+import { CompilationCache } from "./language/compilation-cache";
 import { isSmallBasicDocument, publishDiagnostics, registerLanguageFeatures } from "./language/providers";
-import { SmallBasicTerminalSession } from "./run/terminal-session";
 import { CSharpRunner } from "./run/csharp-runner";
+import { SmallBasicTerminalSession } from "./run/terminal-session";
 
 export function activate(context: vscode.ExtensionContext): void {
   const cache = new CompilationCache();
@@ -38,7 +38,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.debug.registerDebugConfigurationProvider(
       "smallbasic",
-      createDebugConfigurationProvider(),
+      createDebugConfigurationProvider(context.extensionPath),
       vscode.DebugConfigurationProviderTriggerKind.Initial
     )
   );
@@ -52,6 +52,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeTextDocument((event) => {
       cache.delete(event.document.uri);
       scheduleDiagnostics(event.document);
+
+      if (shouldTriggerSuggest(event)) {
+        setTimeout(() => {
+          void vscode.commands.executeCommand("editor.action.triggerSuggest");
+        }, 0);
+      }
     }),
     vscode.workspace.onDidCloseTextDocument((document) => {
       const key = document.uri.toString();
@@ -68,7 +74,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await createNewFile(resource);
     }),
     vscode.commands.registerCommand("smallbasic.run", async () => {
-      await runActiveDocument(context.extensionPath, cache, diagnostics);
+      await runActiveDocument(cache, diagnostics);
     }),
     vscode.commands.registerCommand("smallbasic.runCSharp", async () => {
       await CSharpRunner.runActiveDocument(context.extensionPath);
@@ -80,12 +86,18 @@ export function deactivate(): void {
   // no-op
 }
 
-function createDebugConfigurationProvider(): vscode.DebugConfigurationProvider {
-  const baseConfig = (program: string): vscode.DebugConfiguration => ({
+function createDebugConfigurationProvider(extensionPath: string): vscode.DebugConfigurationProvider {
+  const baseConfig = (
+    program: string,
+    backend: "javascript" | "csharp" = "javascript"
+  ): vscode.DebugConfiguration => ({
     type: "smallbasic",
     request: "launch",
-    name: "SmallBasic: 调试当前文件",
+    name: backend === "csharp"
+      ? "SmallBasic: Run current file with C# backend"
+      : "SmallBasic: Launch current file (JS debugger)",
     program,
+    backend,
     stopOnEntry: false
   });
 
@@ -97,49 +109,47 @@ function createDebugConfigurationProvider(): vscode.DebugConfigurationProvider {
   return {
     resolveDebugConfiguration(_folder, config) {
       if (config.type === "smallbasic" && typeof config.program === "string") {
+        if (config.backend !== "csharp" && config.backend !== "javascript") {
+          config.backend = "javascript";
+        }
+
         return config;
       }
 
       const program = activeSmallBasicPath();
-      if (!program) {
-        return undefined;
-      }
-
-      return baseConfig(program);
+      return program ? baseConfig(program, "javascript") : undefined;
     },
     async resolveDebugConfigurationWithSubstitutedVariables(_folder, config) {
       if (config.type !== "smallbasic") {
         return config;
       }
 
-      let targetIsDirectory = false;
-      if (typeof config.program === "string" && config.program.trim() !== "") {
-        try {
-          const stat = await vscode.workspace.fs.stat(vscode.Uri.file(config.program));
-          targetIsDirectory = (stat.type & vscode.FileType.Directory) !== 0;
-        } catch {
-          targetIsDirectory = false;
-        }
+      if (config.backend !== "csharp" && config.backend !== "javascript") {
+        config.backend = "javascript";
       }
 
-      const programIsMissing = typeof config.program !== "string" || config.program.trim() === "";
-      if (!programIsMissing && !targetIsDirectory) {
-        return config;
+      let program = typeof config.program === "string" ? config.program.trim() : "";
+      if (!program) {
+        program = activeSmallBasicPath() ?? "";
       }
 
-      const fallback = activeSmallBasicPath();
-      if (fallback) {
-        config.program = fallback;
-        return config;
-      }
-
-      if (targetIsDirectory) {
-        void vscode.window.showErrorMessage(`调试目标是一个目录：${config.program}。请打开具体的 .sb 文件后再启动调试。`);
-      } else {
+      if (!program) {
         void vscode.window.showErrorMessage("调试配置缺少有效的 program 路径。请打开一个 .sb 文件后再启动调试。");
+        return undefined;
       }
 
-      return undefined;
+      if (config.backend === "csharp") {
+        if (process.platform !== "win32") {
+          void vscode.window.showErrorMessage("C# SmallBasic 后端当前仅在 Windows 下可用。");
+          return undefined;
+        }
+
+        await CSharpRunner.runProgram(program, extensionPath);
+        return undefined;
+      }
+
+      config.program = program;
+      return config;
     }
   };
 }
@@ -192,7 +202,6 @@ async function nextAvailableFile(folder: vscode.Uri): Promise<vscode.Uri> {
 }
 
 async function runActiveDocument(
-  extensionPath: string,
   cache: CompilationCache,
   diagnostics: vscode.DiagnosticCollection
 ): Promise<void> {
@@ -218,7 +227,7 @@ async function runActiveDocument(
   }
 
   if (compilation.kind.drawsShapes()) {
-    await CSharpRunner.runDocument(editor.document, extensionPath);
+    void vscode.window.showErrorMessage("当前 JS 后端尚不支持 GraphicsWindow/Shapes/Turtle/Controls 图形宿主。请使用 “SmallBasic: Run with C# Backend”，或在 launch.json 中选择 C# 启动项。");
     return;
   }
 
@@ -232,3 +241,24 @@ async function runActiveDocument(
   session.run(compilation as Compilation);
 }
 
+function shouldTriggerSuggest(event: vscode.TextDocumentChangeEvent): boolean {
+  if (!isSmallBasicDocument(event.document)) {
+    return false;
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.uri.toString() !== event.document.uri.toString()) {
+    return false;
+  }
+
+  if (event.contentChanges.length !== 1) {
+    return false;
+  }
+
+  const [change] = event.contentChanges;
+  if (change.rangeLength !== 0 || change.text.length === 0) {
+    return false;
+  }
+
+  return /^\.?$|^[\r\n]+$|^[\p{L}\p{N}_]$/u.test(change.text);
+}

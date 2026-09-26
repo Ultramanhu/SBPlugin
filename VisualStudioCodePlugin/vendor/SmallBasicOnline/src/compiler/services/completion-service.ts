@@ -4,6 +4,15 @@ import { Compilation } from "../compilation";
 import { CompilerUtils } from "../utils/compiler-utils";
 import { SyntaxNodeVisitor, ObjectAccessExpressionSyntax, SyntaxKind, IdentifierExpressionSyntax } from "../syntax/syntax-nodes";
 import { CommandsParser } from "../syntax/command-parser";
+import {
+    BaseBoundNode,
+    BoundArrayAssignmentStatement,
+    BoundKind,
+    BoundLibraryMethodInvocationExpression,
+    BoundLibraryMethodInvocationStatement,
+    BoundStringLiteralExpression,
+    BoundVariableAssignmentStatement
+} from "../binding/bound-nodes";
 
 export module CompletionService {
     export enum ResultKind {
@@ -24,20 +33,20 @@ export module CompletionService {
     export function provideCompletion(compilation: Compilation, position: CompilerPosition): Result[] {
         const objectAccessExpression = compilation.getSyntaxNode(position, SyntaxKind.ObjectAccessExpression);
         if (objectAccessExpression) {
-            const visitor = new CompletionVisitor();
+            const visitor = new CompletionVisitor(compilation);
             visitor.visit(objectAccessExpression);
             return visitor.results;
         }
 
         const identifierExpression = compilation.getSyntaxNode(position, SyntaxKind.IdentifierExpression);
         if (identifierExpression) {
-            const visitor = new CompletionVisitor();
+            const visitor = new CompletionVisitor(compilation);
             visitor.visit(identifierExpression);
             return visitor.results;
         }
 
         if (!compilation.text.trim()) {
-            return getResultsBeforeDot("");
+            return getResultsBeforeDot("", compilation);
         }
 
         // No syntax node found at the cursor position (e.g. blank line, after a
@@ -45,11 +54,15 @@ export module CompletionService {
         // cursor from the source text and return filtered first-level completions
         // so the suggest widget shows relevant items instead of nothing.
         const wordAtCursor = extractWordAtPosition(compilation.text, position);
-        return getResultsBeforeDot(wordAtCursor);
+        return getResultsBeforeDot(wordAtCursor, compilation);
     }
 
     class CompletionVisitor extends SyntaxNodeVisitor {
         private _allResults: Result[] = [];
+
+        public constructor(private readonly compilation: Compilation) {
+            super();
+        }
 
         public get results(): Result[] {
             return this._allResults;
@@ -109,12 +122,22 @@ export module CompletionService {
 
         public visitIdentifierExpression(node: IdentifierExpressionSyntax): void {
             const libraryName = node.identifierToken.token.text;
-            this._allResults = getResultsBeforeDot(libraryName);
+            this._allResults = getResultsBeforeDot(libraryName, this.compilation);
         }
     }
 
-    function getResultsBeforeDot(prefix: string): Result[] {
+    function getResultsBeforeDot(prefix: string, compilation: Compilation): Result[] {
         const results: Result[] = [];
+
+        collectVariablesAndSubModules(compilation).forEach(name => {
+            if (CompilerUtils.stringStartsWith(name, prefix)) {
+                results.push({
+                    title: name,
+                    description: name,
+                    kind: name in compilation.boundSubModules ? ResultKind.Method : ResultKind.Property
+                });
+            }
+        });
 
         CompilerUtils.values(RuntimeLibraries.Metadata).forEach(library => {
             if (CompilerUtils.stringStartsWith(library.typeName, prefix)) {
@@ -133,6 +156,73 @@ export module CompletionService {
         });
 
         return results;
+    }
+
+    function collectVariablesAndSubModules(compilation: Compilation): string[] {
+        const names: string[] = [];
+        const seen = new Set<string>();
+
+        const add = (name: string): void => {
+            const key = name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                names.push(name);
+            }
+        };
+
+        for (const [name, module] of Object.entries(compilation.boundSubModules)) {
+            if (name !== "<Main>") {
+                add(name);
+            }
+
+            visit(module, add);
+        }
+
+        return names;
+    }
+
+    function visit(node: BaseBoundNode, add: (name: string) => void): void {
+        switch (node.kind) {
+            case BoundKind.VariableAssignmentStatement:
+                add((node as BoundVariableAssignmentStatement).variableName);
+                break;
+            case BoundKind.ArrayAssignmentStatement:
+                add((node as BoundArrayAssignmentStatement).arrayName);
+                break;
+            case BoundKind.LibraryMethodInvocationStatement:
+                collectArrayLibraryName(node as BoundLibraryMethodInvocationStatement, add);
+                break;
+            case BoundKind.LibraryMethodInvocationExpression:
+                collectArrayLibraryName(node as BoundLibraryMethodInvocationExpression, add);
+                break;
+            default:
+                break;
+        }
+
+        node.children().forEach(child => visit(child, add));
+    }
+
+    function collectArrayLibraryName(
+        node: BoundLibraryMethodInvocationStatement | BoundLibraryMethodInvocationExpression,
+        add: (name: string) => void
+    ): void {
+        if (node.libraryName.toLowerCase() !== "array") {
+            return;
+        }
+
+        switch (node.methodName.toLowerCase()) {
+            case "setvalue":
+            case "getvalue":
+            case "removevalue":
+                break;
+            default:
+                return;
+        }
+
+        const [firstArgument] = node.argumentsList;
+        if (firstArgument?.kind === BoundKind.StringLiteralExpression) {
+            add((firstArgument as BoundStringLiteralExpression).value);
+        }
     }
 
     function keywordSnippets(): Result[] {

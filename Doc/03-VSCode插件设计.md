@@ -5,9 +5,11 @@
 > **2026-09-26 现状校准**
 >
 > - 当前仓库已实际落地的包名是 `packages/smallbasic-lang-core` 与 `packages/smallbasic-vscode`；独立 `sb-debug` 包仍是后续可拆分形态，并未单独存在。
-> - 当前已实现：`.sb` 关联与着色、诊断、悬停、一级/二级补全、`TextWindow` 文本运行、基础 JS 调试器、`Text`/`Array` 等核心运行库、库事件绑定语义（如 `GraphicsWindow.KeyDown = HandleKey` 可正确编译）。
-> - 当前未实现：`GraphicsWindow/Controls/Turtle` 的 **JS 图形宿主**。因此图形程序（如 `Tetris.sb`）在内置 JS 后端下会被**提前拦截并给出明确提示**，而不是继续抛出底层异常。
-> - 后续若推进 VSCode 双后端，建议保持“语言服务始终内置、运行/调试后端按能力切换”的分层：桌面版优先 `dotnet` 图形后端，Web/轻量场景优先 `ts` 后端。
+> - 当前已实现：`.sb` 关联与着色、诊断、悬停、一级/二级补全、`TextWindow` 文本运行、基础 JS 调试器、`Text`/`Array` 等核心运行库、库事件绑定语义（如 `GraphicsWindow.KeyDown = HandleKey` 可正确编译）、以及 **Windows 下的 C# 运行后端接入**。
+> - 当前后端选择改为**显式模式**：
+>   - 运行：`smallbasic.run` 固定走 JS 后端；`smallbasic.runCSharp` 固定走 C# 后端；
+>   - 调试/启动：在 `launch.json` 中显式选择 `backend = "javascript"` 或 `backend = "csharp"`。
+> - 当前未实现：`GraphicsWindow/Controls/Turtle` 的 **JS 图形宿主**。因此图形程序（如 `Tetris.sb`）的图形支持，当前依赖 **Windows + C# 后端**；在非 Windows 或选择 JS 后端时，会得到明确能力提示，而不是继续抛出底层异常。
 
 ## 1. 工程结构
 
@@ -103,11 +105,8 @@ VisualStudioCodePlugin/
     "debuggers": [{ "type": "smallbasic", ... }],   // 详见 05 文档
     "configuration": { "properties": {
       "smallbasic.diagnostics.debounceMs": { "type": "number", "default": 150 },
-      "smallbasic.run.keepTerminalOpen":   { "type": "boolean", "default": true },
-      "smallbasic.backend": { "type": "string", "enum": ["ts", "dotnet"], "default": "ts",
-        "description": "运行/调试使用的引擎后端：ts=内置 JS 引擎（默认）；dotnet=.NET 引擎（需可选组件）" },
-      "smallbasic.dotnetBackend.path": { "type": "string", "default": "",
-        "description": "SB.RunHost/SB.DebugAdapter 所在目录；为空则首次使用时按需下载" }
+      "smallbasic.csharp.runHostPath": { "type": "string", "default": "",
+        "description": "SmallBasic.RunHost.exe 路径；为空时按常见构建输出或扩展内置 RunHost 目录自动搜索" }
     }}
   }
 }
@@ -178,19 +177,19 @@ class CompilationCache {
 
 命令 `smallbasic.run`，按 `smallbasic.backend` 分流（ADR-5）：
 
-**backend = "ts"（默认，内置 JS 引擎）**：
+**命令 `smallbasic.run`（内置 JS 引擎）**：
 
 1. 保存文档，`new Compilation(text)`，若 `!isReadyToRun` → 诊断面板提示，不运行。
 2. 创建 VS Code **Terminal**（` Pseudoterminal` 实现），实例化 `ExecutionEngine`，注入 `ITextWindowLibraryPlugin` 的终端实现：
    - `writeText` → PTY write
    - `inputIsNeeded/checkInputBuffer` → PTY 行缓冲读
 3. 引擎 `execute(RunToEnd)` 在**独立 Node 子进程**（`run-host.ts`，即 CLI 契约的 `sb-run` 形态）执行，扩展进程通过 IPC 转发终端 I/O——避免死循环程序卡死扩展宿主；`terminate` 由终端关闭/超时按钮触发。
-4. `compilation.kind` 探测到 GraphicsWindow 用法 → MVP 提示"该程序需要图形支持（二期）"。
+4. `compilation.kind` 探测到 GraphicsWindow 用法 → 给出明确能力提示，引导改用 C# 后端命令或 `launch.json` 中的 C# 启动项。
 
-**backend = "dotnet"（.NET 引擎，可选组件）**：
+**命令 `smallbasic.runCSharp` / `launch.json` 的 `backend = "csharp"`（.NET 引擎，当前桌面图形后端）**：
 
 1. 解析 `smallbasic.dotnetBackend.path` 或按需下载 `SB.RunHost.exe`（net8.0 自包含单文件，与 VS 侧同一构建产物）。
-2. 终端中执行 `SB.RunHost.exe run --file "<path>.sb"`，其 `ConsoleTextWindowLibrary` 直接读写该终端——VS Code 侧零适配代码，与 VS 侧运行体验一致。
+2. 终端中执行 `SB.RunHost.exe run --file "<path>.sb" --pause`，其 `ConsoleTextWindowLibrary` 直接读写该终端；若程序使用 `GraphicsWindow/Shapes`，则由宿主内置的官方 `Microsoft.SmallBasic.Library` 图形窗口负责渲染。
 3. 下载策略：首次切换时从发布渠道拉取对应 RID 的单文件，缓存于扩展全局存储；校验 SHA-256。
 
 ## 9. 调试接入
@@ -198,9 +197,11 @@ class CompilationCache {
 `contributes.debuggers` 声明 `type: "smallbasic"`，`program` 指向 `packages/sb-debug/dist/adapter.js`（`adapter` 类型 debug adapter，`vscode-debugadapter` 库实现 DAP 服务端）。launch.json 形态：
 
 ```jsonc
-{ "type": "smallbasic", "request": "launch", "name": "Run SB",
-  "program": "${file}", "console": "integratedTerminal",
-  "backend": "ts" }          // "ts"=内置 JS 引擎（默认）；"dotnet"= SB.DebugAdapter.exe
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Launch current file (JS debugger)",
+  "program": "${file}", "backend": "javascript", "stopOnEntry": false }
+
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Run current file with C# backend",
+  "program": "${file}", "backend": "csharp", "stopOnEntry": false }
 ```
 
 **后端分流**：`backend` 缺省取 `smallbasic.backend` 设置。`"dotnet"` 时扩展改为以可执行文件方式启动 `SB.DebugAdapter.exe`（stdio DAP，`DebugAdapterExecutable` 描述符），协议语义与 TS 适配器字段级对齐（见 05 §5），IDE 侧调试 UI 无差异。

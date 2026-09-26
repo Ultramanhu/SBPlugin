@@ -8,6 +8,7 @@
 > - 本次修复已完成两处关键问题：
 >   1. `SmallBasicRunCommandFilter` 改为挂接 `Document` 文本视图，并正确保存/转发下一个命令过滤器，避免把 VS 自身命令链“吃掉”；
 >   2. VSIX 构建输出与打包脚本现在会自动携带 `RunHost/SmallBasic.RunHost.exe` 及其依赖文件。
+> - `SmallBasic.RunHost` 现已接入官方 `Microsoft.SmallBasic.Library` 的 `GraphicsWindow`/`Shapes` 实现；`Tetris.sb` 这类图形样例可以由运行宿主成功进入图形运行态。
 > - 当前仍未落地：真正的 Visual Studio 调试集成（Debug Adapter Host 或 AD7 方案）以及图形宿主/WPF 运行窗口。因此现阶段 `F5/Ctrl+F5` 仍等价于“运行当前 `.sb` 文件”，而不是完整调试体验。
 
 ## 1. 技术路线选择
