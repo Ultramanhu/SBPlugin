@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SmallBasic.RunHost/SmallBasic.RunHost.csproj" />
+    <Project Path="src/SmallBasic.Vsix/SmallBasic.Vsix.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SmallBasic.Compiler.Tests/SmallBasic.Compiler.Tests.csproj" />
+  </Folder>
+  <Folder Name="/vendor/">
+    <Project Path="vendor/SmallBasicEditor/Source/SmallBasic.Compiler/SmallBasic.Compiler.csproj" />
+    <Project Path="vendor/SmallBasicEditor/Source/SmallBasic.Utilities/SmallBasic.Utilities.csproj" />
+  </Folder>
+</Solution>

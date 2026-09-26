@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <DeployExtension>false</DeployExtension>
+    <CopyVsixManifestToOutput>true</CopyVsixManifestToOutput>
+    <DebugAdapterSource>$(MSBuildThisFileDirectory)..\..\..\VisualStudioCodePlugin\packages\smallbasic-vscode\dist\debug\adapter.js</DebugAdapterSource>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <Content Include="$(DebugAdapterSource)" Condition="Exists('$(DebugAdapterSource)')">
+      <Link>DebugAdapter\adapter.js</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="ValidateDebugAdapterOutput" BeforeTargets="Build">
+    <Warning
+      Condition="!Exists('$(DebugAdapterSource)')"
+      Text="Small Basic debug adapter was not found. Run npm run build in VisualStudioCodePlugin before packaging the VSIX." />
+  </Target>
+
+  <Target Name="CopyRunHostOutput" AfterTargets="Build">
+    <MSBuild
+      Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration)" />
+
+    <ItemGroup>
+      <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
+    </ItemGroup>
+
+    <RemoveDir Directories="$(TargetDir)RunHost" />
+    <MakeDir Directories="$(TargetDir)RunHost" />
+    <Copy
+      SourceFiles="@(RunHostFiles)"
+      DestinationFiles="@(RunHostFiles->'$(TargetDir)RunHost\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+</Project>

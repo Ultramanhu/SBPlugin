@@ -1,0 +1,149 @@
+{
+  "name": "smallbasic-vscode",
+  "displayName": "SmallBasic",
+  "description": "SmallBasic language support for VSCode.",
+  "version": "0.1.0",
+  "publisher": "smallbasic",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "main": "./dist/extension.js",
+  "categories": [
+    "Programming Languages"
+  ],
+  "files": [
+    "dist/**",
+    "LICENSE.txt",
+    "language-configuration.json",
+    "media/**",
+    "RunHost/**",
+    "snippets/**",
+    "syntaxes/**"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "smallbasic",
+        "aliases": ["SmallBasic", "smallbasic"],
+        "extensions": [".sb"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/SmallBasic.svg",
+          "dark": "./media/SmallBasic.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "smallbasic",
+        "scopeName": "source.smallbasic",
+        "path": "./syntaxes/smallbasic.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "smallbasic",
+        "path": "./snippets/smallbasic.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "smallbasic.newFile",
+        "title": "SmallBasic: New File"
+      },
+      {
+        "command": "smallbasic.run",
+        "title": "SmallBasic: Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "smallbasic.runCSharp",
+        "title": "SmallBasic: Run with C# Backend",
+        "icon": "$(debug-start)"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "smallbasic.run",
+          "when": "resourceLangId == smallbasic",
+          "group": "navigation"
+        },
+        {
+          "command": "smallbasic.runCSharp",
+          "when": "resourceLangId == smallbasic",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "smallbasic.newFile",
+          "when": "explorerResourceIsFolder"
+        }
+      ]
+    },
+    "debuggers": [
+      {
+        "type": "smallbasic",
+        "label": "SmallBasic",
+        "languages": ["smallbasic"],
+        "configurationAttributes": {
+          "launch": {
+            "required": ["program"],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the SmallBasic program.",
+                "default": "${file}"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "default": false,
+                "description": "Break on the first executable line."
+              }
+            }
+          }
+        },
+        "configurationSnippets": [
+          {
+            "label": "SmallBasic: Launch current file",
+            "body": {
+              "type": "smallbasic",
+              "request": "launch",
+              "name": "SmallBasic: Launch current file",
+              "program": "${file}",
+              "stopOnEntry": false
+            }
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "SmallBasic",
+      "properties": {
+        "smallbasic.diagnostics.debounceMs": {
+          "type": "number",
+          "default": 150,
+          "minimum": 0,
+          "description": "Delay before recomputing diagnostics after edits."
+        },
+        "smallbasic.csharp.runHostPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to SmallBasic.RunHost.exe for the C# runtime backend. If empty, the extension searches common build output locations."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "node ./scripts/stage-runhost.mjs && vsce package --no-dependencies --allow-missing-repository -o ../../build/SmallBasic.VSCode-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "smallbasic-lang-core": "0.1.0"
+  }
+}
+

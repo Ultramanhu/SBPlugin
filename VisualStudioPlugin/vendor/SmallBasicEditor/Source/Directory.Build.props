@@ -1,0 +1,76 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <RootDirectory>$(MSBuildThisFileDirectory)..</RootDirectory>
+    <IsBuildingForDesktop Condition="'$(IsBuildingForDesktop)' == ''">False</IsBuildingForDesktop>
+    <DefineConstants Condition="'$(IsBuildingForDesktop)' == 'True'">$(DefineConstants);IsBuildingForDesktop</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <DisabledWarnings Include="CA1016" Comment="Mark assemblies with assembly version (blazor complains for some reason, even though the assembly is stamped correctly)." />
+    <DisabledWarnings Include="CA1034" Comment="Nested types should not be visible." />
+    <DisabledWarnings Include="CA1054" Comment="Uri parameters should not be strings (conflicts with library definitions)." />
+    <DisabledWarnings Include="CA1055" Comment="Uri return values should not be strings." />
+    <DisabledWarnings Include="CA1710" Comment="Rename '{0}' to end in '{1}' (for IReadOnly collections)." />
+    <DisabledWarnings Include="CA1716" Comment="Rename type '{0}' so that it no longer conflicts with the reserved language keyword '{0}'. Using a reserved keyword as the name of a type makes it harder for consumers in other languages to use the type." />
+    <DisabledWarnings Include="CA1812" Comment="'{0}' is an internal class that is apparently never instantiated. If so, remove the code from the assembly. If this class is intended to contain only static members, make it static (blazor components)." />
+    <DisabledWarnings Include="CA2225" Comment="Operator overloads have named alternates." />
+    <DisabledWarnings Include="CA2227" Comment="Collection properties should be read only (required for XML deserialization)." />
+
+    <DisabledWarnings Include="IDE1001" Comment="The analyzer assembly '{0}' has changed. Diagnostics may be incorrect until Visual Studio is restarted." />
+    <DisabledWarnings Include="IDE1003" Comment="Analyzer assembly '{0}' depends on '{1}' but it was not found. Analyzers may not run correctly unless the missing assembly is added as an analyzer reference as well (bug in analyzers where netstandard is not excluded from this warning)." />
+    <DisabledWarnings Include="IDE0041" Comment="Use 'is null' check (replaced by custom analyzer)." />
+
+    <DisabledWarnings Include="SA1005" Comment="Single line comment must begin with a space (tests assertions)." />
+    <DisabledWarnings Include="SA1008" Comment="Opening parenthesis must be spaced correctly (has a bug with tuples)." />
+    <DisabledWarnings Include="SA1009" Comment="Closing parenthesis must be spaced correctly (has a bug with tuples)." />
+    <DisabledWarnings Include="SA1114" Comment="Parameter list must follow declaration (tests assertions)." />
+    <DisabledWarnings Include="SA1115" Comment="The parameter must begin on the line after the previous parameter (tests assertions)." />
+    <DisabledWarnings Include="SA1116" Comment="Split parameters must start on line after declaration (tests assertions)." />
+    <DisabledWarnings Include="SA1117" Comment="The parameters must all be placed on the same line or each parameter must be placed on its own line (tests assertions)." />
+    <DisabledWarnings Include="SA1118" Comment="The parameter spans multiple lines (generated libraries)." />
+    <DisabledWarnings Include="SA1119" Comment="Statement must not use unnecessary parenthesis." />
+    <DisabledWarnings Include="SA1204" Comment="Static members must appear before non-static members." />
+    <DisabledWarnings Include="SA1402" Comment="File may only contain a single class." />
+    <DisabledWarnings Include="SA1515" Comment="Single-line comment must be preceded by blank line (tests diagnostics assertions)." />
+    <DisabledWarnings Include="SA1649" Comment="File name must match first type name." />
+    <DisabledWarnings Include="SA1652" Comment="The project is currently configured to not parse XML documentation comments; all diagnostics for documentation comments are disabled." />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <NoWarn>@(DisabledWarnings, ',')</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Additional Files -->
+    <AdditionalFiles Include="$(RootDirectory)\Source\stylecop.json">
+      <Visible>false</Visible>
+    </AdditionalFiles>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Localization -->
+    <AssemblyAttribute Include="System.Resources.NeutralResourcesLanguage">
+      <_Parameter1>en-US</_Parameter1>
+    </AssemblyAttribute>
+    <PackageReference Include="Microsoft.Extensions.Localization" Version="2.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Analyzers -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="2.6.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.6.1" />
+    <PackageReference Include="Microsoft.NetCore.Analyzers" Version="2.6.1" />
+    <PackageReference Include="Text.Analyzers" Version="2.6.1" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(ProjectName)' != 'SmallBasic.Analyzers'">
+    <!-- Custom Analyzers -->
+    <ProjectReference Include="$(RootDirectory)\Source\SmallBasic.Analyzers\SmallBasic.Analyzers.csproj" />
+    <Analyzer Include="$(RootDirectory)\Source\SmallBasic.Analyzers\bin\$(Configuration)\netstandard2.0\SmallBasic.Analyzers.dll" />
+  </ItemGroup>
+
+</Project>

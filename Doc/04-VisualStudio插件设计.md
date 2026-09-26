@@ -2,6 +2,14 @@
 
 落地目录：`VisualStudioPlugin/`。目标：发布 VSIX（支持 VS 2022 17.x 与 VS 2026 18.x），为 `*.sb` 提供文件创建、着色、IntelliSense、编译运行与调试。
 
+> **2026-09-26 现状校准**
+>
+> - 当前仓库已经落地的是 **经典 VSIX + MEF 编辑器扩展**，并额外带有 `SmallBasic.RunHost` 文本运行宿主；并没有实现文中提到的 `AsyncPackage + VSCT + Debug Adapter Host` 全链路。
+> - 本次修复已完成两处关键问题：
+>   1. `SmallBasicRunCommandFilter` 改为挂接 `Document` 文本视图，并正确保存/转发下一个命令过滤器，避免把 VS 自身命令链“吃掉”；
+>   2. VSIX 构建输出与打包脚本现在会自动携带 `RunHost/SmallBasic.RunHost.exe` 及其依赖文件。
+> - 当前仍未落地：真正的 Visual Studio 调试集成（Debug Adapter Host 或 AD7 方案）以及图形宿主/WPF 运行窗口。因此现阶段 `F5/Ctrl+F5` 仍等价于“运行当前 `.sb` 文件”，而不是完整调试体验。
+
 ## 1. 技术路线选择
 
 VS 2026 有两代扩展模型：

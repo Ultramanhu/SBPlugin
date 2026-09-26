@@ -2,6 +2,13 @@
 
 落地目录：`VisualStudioCodePlugin/`。目标：发布到 VS Code Marketplace 的扩展，支持 `.sb` 文件创建、着色、IntelliSense、运行、调试。
 
+> **2026-09-26 现状校准**
+>
+> - 当前仓库已实际落地的包名是 `packages/smallbasic-lang-core` 与 `packages/smallbasic-vscode`；独立 `sb-debug` 包仍是后续可拆分形态，并未单独存在。
+> - 当前已实现：`.sb` 关联与着色、诊断、悬停、一级/二级补全、`TextWindow` 文本运行、基础 JS 调试器、`Text`/`Array` 等核心运行库、库事件绑定语义（如 `GraphicsWindow.KeyDown = HandleKey` 可正确编译）。
+> - 当前未实现：`GraphicsWindow/Controls/Turtle` 的 **JS 图形宿主**。因此图形程序（如 `Tetris.sb`）在内置 JS 后端下会被**提前拦截并给出明确提示**，而不是继续抛出底层异常。
+> - 后续若推进 VSCode 双后端，建议保持“语言服务始终内置、运行/调试后端按能力切换”的分层：桌面版优先 `dotnet` 图形后端，Web/轻量场景优先 `ts` 后端。
+
 ## 1. 工程结构
 
 采用 monorepo（npm workspaces + esbuild 打包 + vitest 测试）：
@@ -11,28 +18,27 @@ VisualStudioCodePlugin/
 ├── package.json                  # workspace 根
 ├── tsconfig.base.json
 ├── packages/
-│   ├── sb-lang-core/             # 语言核心（拷贝升级自 SmallBasicOnline/src/compiler，见 §2）
+│   ├── smallbasic-lang-core/     # 语言核心（拷贝升级自 SmallBasicOnline/src/compiler，见 §2）
 │   │   ├── src/
 │   │   │   ├── syntax/  binding/  emitting/  runtime/  services/  utils/
 │   │   │   └── index.ts          # 公共出口：Compilation/ExecutionEngine/services/元数据
 │   │   ├── tests/                # 移植自 SmallBasicOnline/tests/compiler（jasmine→vitest）
 │   │   └── package.json          # 零依赖纯 TS 包
-│   ├── sb-extension/             # VS Code 扩展本体
+│   ├── smallbasic-vscode/        # VS Code 扩展本体（当前包含调试适配器代码）
 │   │   ├── package.json          # 扩展清单（contributes 见 §3）
 │   │   ├── src/
 │   │   │   ├── extension.ts      # activate/deactivate
 │   │   │   ├── language/         # 补全/悬停/诊断/语义着色/定义跳转
 │   │   │   ├── editing/          # 新建文件命令、snippet
 │   │   │   ├── run/              # 运行（非调试）宿主
+│   │   │   ├── debug/            # 当前内嵌的 DAP 调试适配器实现
 │   │   │   └── util/             # 坐标转换、防抖、编译缓存
 │   │   ├── syntaxes/smallbasic.tmLanguage.json   # TextMate 语法
 │   │   ├── language-configuration.json           # 括号/注释/缩进规则
 │   │   ├── snippets/smallbasic.json
 │   │   ├── data/library-docs.json                # 由 SmallBasicLibrary.xml 生成
 │   │   └── media/                # 图标
-│   └── sb-debug/                 # DAP 调试适配器（见 05 文档）
-│       ├── src/ ...
-│       └── package.json
+│   └── sb-debug/                 # （规划中）未来可拆分出的独立 DAP 调试适配器
 ├── scripts/
 │   └── generate-library-docs.mjs # SmallBasicLibrary.xml → library-docs.json
 └── conformance/                  # 一致性测试集（与 VS 侧共享，见 07）

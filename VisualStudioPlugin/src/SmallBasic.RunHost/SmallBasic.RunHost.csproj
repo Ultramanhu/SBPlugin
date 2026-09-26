@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SmallBasic" Version="1.2.0" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ArrayLibrary.cs" Link="Libraries\Imported\ArrayLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ClockLibrary.cs" Link="Libraries\Imported\ClockLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\DictionaryLibrary.cs" Link="Libraries\Imported\DictionaryLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\MathLibrary.cs" Link="Libraries\Imported\MathLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\StackLibrary.cs" Link="Libraries\Imported\StackLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TextLibrary.cs" Link="Libraries\Imported\TextLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TimerLibrary.cs" Link="Libraries\Imported\TimerLibrary.cs" />
+  </ItemGroup>
+</Project>

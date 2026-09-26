@@ -2,6 +2,11 @@
 .vs/
 .vscode/
 *.csproj.user
+.artifacts
+
+# ai file
+.tmp
+.kilo
 
 # Output files
 bin
@@ -9,3 +14,6 @@ obj
 node_modules
 wwwroot
 out
+VisualStudioCodePlugin/packages/smallbasic-vscode/RunHost/
+.gitignore
+

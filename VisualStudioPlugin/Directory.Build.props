@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);SA1005;SA1008;SA1114;SA1115;SA1116;SA1202;SA1402;SA1502;SA1515;SA1516;SA1633;SA1636;SA1652;CA1054;CA1307;CA1812;xUnit1030</NoWarn>
+  </PropertyGroup>
+</Project>
