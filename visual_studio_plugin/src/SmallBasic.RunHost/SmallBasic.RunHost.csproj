@@ -22,6 +22,7 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
     <Compile Remove="Libraries\GraphicsWindowLibrary.cs" />
     <Compile Remove="Libraries\ShapesLibrary.cs" />
+    <Compile Remove="Libraries\TurtleLibrary.cs" />
   </ItemGroup>
 
   <!-- net48 has no inbox System.Text.Json; the DAP debug host needs it. -->

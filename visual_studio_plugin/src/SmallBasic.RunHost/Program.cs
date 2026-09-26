@@ -50,10 +50,15 @@ try
         switch (engine.State)
         {
             case ExecutionState.Running:
-#if GRAPHICS_HOST
-                libraries.GraphicsWindow?.DispatchPendingEvents();
-#endif
                 await engine.Execute().ConfigureAwait(false);
+                if (engine.State == ExecutionState.Running)
+                {
+                    // Event-only programs have no active frame between input
+                    // or timer callbacks. Avoid a hot polling loop while still
+                    // giving queued events prompt interpreter-thread service.
+                    await Task.Delay(1).ConfigureAwait(false);
+                }
+
                 break;
             case ExecutionState.BlockedOnStringInput:
                 libraries.TextWindow.SetPendingInput(await Console.In.ReadLineAsync().ConfigureAwait(false) ?? string.Empty);

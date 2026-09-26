@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.SmallBasic.Library;
 using Microsoft.SmallBasic.Library.Internal;
 using SmallBasic.Compiler.Runtime;
@@ -14,7 +13,6 @@ namespace SmallBasic.RunHost.Libraries;
 /// </summary>
 public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary, IDisposable
 {
-    private readonly ConcurrentQueue<Action> inputEvents = new();
     private readonly SmallBasicCallback keyDownHandler;
     private readonly SmallBasicCallback keyUpHandler;
     private readonly SmallBasicCallback mouseDownHandler;
@@ -27,12 +25,15 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary, IDisposable
     {
         SmallBasicApplication.BeginProgram();
 
-        this.keyDownHandler = () => this.inputEvents.Enqueue(() => this.KeyDown?.Invoke());
-        this.keyUpHandler = () => this.inputEvents.Enqueue(() => this.KeyUp?.Invoke());
-        this.mouseDownHandler = () => this.inputEvents.Enqueue(() => this.MouseDown?.Invoke());
-        this.mouseMoveHandler = () => this.inputEvents.Enqueue(() => this.MouseMove?.Invoke());
-        this.mouseUpHandler = () => this.inputEvents.Enqueue(() => this.MouseUp?.Invoke());
-        this.textInputHandler = () => this.inputEvents.Enqueue(() => this.TextInput?.Invoke());
+        // The engine queues callbacks at instruction boundaries, so these WPF
+        // dispatcher events can be forwarded immediately without touching the
+        // interpreter's execution stack from the UI thread.
+        this.keyDownHandler = () => this.KeyDown?.Invoke();
+        this.keyUpHandler = () => this.KeyUp?.Invoke();
+        this.mouseDownHandler = () => this.MouseDown?.Invoke();
+        this.mouseMoveHandler = () => this.MouseMove?.Invoke();
+        this.mouseUpHandler = () => this.MouseUp?.Invoke();
+        this.textInputHandler = () => this.TextInput?.Invoke();
 
         OfficialGraphicsWindow.KeyDown += this.keyDownHandler;
         OfficialGraphicsWindow.KeyUp += this.keyUpHandler;
@@ -160,14 +161,6 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary, IDisposable
     {
         OfficialGraphicsWindow.ShowMessage(text, title);
         return Task.CompletedTask;
-    }
-
-    public void DispatchPendingEvents()
-    {
-        while (this.inputEvents.TryDequeue(out Action? callback))
-        {
-            callback();
-        }
     }
 
     public void Dispose()

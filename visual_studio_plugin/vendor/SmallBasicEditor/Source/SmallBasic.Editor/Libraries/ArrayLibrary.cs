@@ -50,11 +50,13 @@ namespace SmallBasic.Editor.Libraries
 
         public void SetValue(string arrayName, string index, BaseValue value)
         {
-            if (this.arrays.TryGetValue(arrayName, out ArrayValue array))
+            if (!this.arrays.TryGetValue(arrayName, out ArrayValue array))
             {
-                array.SetIndex(index, value);
-                this.arrays[arrayName] = array;
+                array = new ArrayValue();
             }
+
+            array.SetIndex(index, value);
+            this.arrays[arrayName] = array;
         }
     }
 }

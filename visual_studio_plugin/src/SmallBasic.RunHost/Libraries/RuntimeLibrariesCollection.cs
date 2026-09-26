@@ -27,12 +27,7 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
         this.Math = new MathLibrary();
         this.Mouse = new UnsupportedMouseLibrary();
         this.Network = new UnsupportedNetworkLibrary();
-        this.Program =
-#if GRAPHICS_HOST
-            new ProgramLibrary(this.GraphicsWindow);
-#else
-            new ProgramLibrary();
-#endif
+        this.Program = new ProgramLibrary();
         this.ShapesImplementation = new UnsupportedShapesLibrary();
 #if GRAPHICS_HOST
         if (this.GraphicsWindow != null)
@@ -45,7 +40,13 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
         this.Text = new TextLibrary();
         this.TextWindow = new TextWindowLibrary(input ?? TextReader.Null, output ?? TextWriter.Null);
         this.Timer = new TimerLibrary();
-        this.Turtle = new UnsupportedTurtleLibrary();
+#if GRAPHICS_HOST
+        this.TurtleImplementation = this.GraphicsWindow != null
+            ? new TurtleLibrary()
+            : new UnsupportedTurtleLibrary();
+#else
+        this.TurtleImplementation = new UnsupportedTurtleLibrary();
+#endif
     }
 
     private ArrayLibrary Array { get; }
@@ -90,7 +91,7 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
 
     private TimerLibrary Timer { get; }
 
-    private UnsupportedTurtleLibrary Turtle { get; }
+    private ITurtleLibrary TurtleImplementation { get; }
 
     IArrayLibrary IEngineLibraries.Array => this.Array;
 
@@ -130,7 +131,7 @@ public sealed class RuntimeLibrariesCollection : IEngineLibraries, IDisposable
 
     ITimerLibrary IEngineLibraries.Timer => this.Timer;
 
-    ITurtleLibrary IEngineLibraries.Turtle => this.Turtle;
+    ITurtleLibrary IEngineLibraries.Turtle => this.TurtleImplementation;
 
     public void Dispose()
     {

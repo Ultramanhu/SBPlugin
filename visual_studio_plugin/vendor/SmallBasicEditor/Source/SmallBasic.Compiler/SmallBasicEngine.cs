@@ -5,6 +5,7 @@
 namespace SmallBasic.Compiler
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
@@ -32,14 +33,16 @@ namespace SmallBasic.Compiler
     public sealed class SmallBasicEngine
     {
         private readonly SmallBasicCompilation compilation;
-        private readonly Dictionary<string, string> eventCallbacks;
+        private readonly ConcurrentDictionary<string, string> eventCallbacks;
+        private readonly ConcurrentQueue<string> pendingEventCallbacks;
 
         public SmallBasicEngine(SmallBasicCompilation compilation, IEngineLibraries libraries)
         {
             Debug.Assert(!compilation.Diagnostics.Any(), "Cannot execute a compilation with errors.");
 
             this.compilation = compilation;
-            this.eventCallbacks = new Dictionary<string, string>(StringComparer.CurrentCultureIgnoreCase);
+            this.eventCallbacks = new ConcurrentDictionary<string, string>(StringComparer.CurrentCultureIgnoreCase);
+            this.pendingEventCallbacks = new ConcurrentQueue<string>();
 
             this.CurrentSourceLine = 0;
 
@@ -89,6 +92,8 @@ namespace SmallBasic.Compiler
 
             while (this.State == ExecutionState.Running)
             {
+                this.DispatchPendingEvents();
+
                 if (this.ExecutionStack.Count == 0)
                 {
                     if (!this.compilation.Analysis.ListensToEvents)
@@ -161,23 +166,17 @@ namespace SmallBasic.Compiler
 
         internal void SetEventCallback(string library, string eventName, string subModule)
         {
-            this.eventCallbacks[$"{library}.${eventName}"] = subModule;
+            this.eventCallbacks[$"{library}.{eventName}"] = subModule;
         }
 
         internal void RaiseEvent(string library, string eventName)
         {
-            if (this.eventCallbacks.TryGetValue($"{library}.${eventName}", out string subModule))
+            if (this.eventCallbacks.TryGetValue($"{library}.{eventName}", out string subModule))
             {
-                var existing = this.ExecutionStack.Take(this.ExecutionStack.Count - 1).FirstOrDefault(frame => frame.Module.Name == subModule);
-                if (!existing.IsDefault())
-                {
-                    this.ExecutionStack.Remove(existing);
-                }
-
-                // The last frame is the active frame.  Event callbacks must be
-                // pushed on top of it so they can interrupt a long-running main
-                // loop (for example GraphicsWindow.KeyDown in Tetris).
-                this.ExecutionStack.AddLast(new Frame(this.Modules[subModule]));
+                // Library events can originate on a WPF dispatcher or timer
+                // thread. Mutating the execution stack from those threads can
+                // corrupt the interpreter, so only queue the callback here.
+                this.pendingEventCallbacks.Enqueue(subModule);
             }
         }
 
@@ -189,6 +188,27 @@ namespace SmallBasic.Compiler
         internal void BlockOnNumberInput()
         {
             this.State = ExecutionState.BlockedOnNumberInput;
+        }
+
+        private void DispatchPendingEvents()
+        {
+            // Only process events that were pending at this instruction
+            // boundary. A continuously firing timer must not starve normal
+            // program instructions.
+            int pendingCount = this.pendingEventCallbacks.Count;
+            for (int i = 0; i < pendingCount && this.pendingEventCallbacks.TryDequeue(out string subModule); i++)
+            {
+                var existing = this.ExecutionStack.Take(this.ExecutionStack.Count - 1).FirstOrDefault(frame => frame.Module.Name == subModule);
+                if (!existing.IsDefault())
+                {
+                    this.ExecutionStack.Remove(existing);
+                }
+
+                // The last frame is the active frame. Event callbacks must be
+                // pushed on top of it so they can interrupt a long-running main
+                // loop (for example GraphicsWindow.KeyDown in Tetris).
+                this.ExecutionStack.AddLast(new Frame(this.Modules[subModule]));
+            }
         }
 
         private RuntimeModule EmitAndSaveModule(string name, BoundStatementBlock body)
