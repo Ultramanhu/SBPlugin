@@ -1,11 +1,11 @@
 # Builds every release artifact of this repository in dependency order:
 #
-#   1. RunHost\Build-RunHost.ps1                 -> RunHost\<platform>\ + RunHost\javascript\
-#   2. VisualStudioCodePlugin\build\Package-Vsix.ps1
-#                                                -> VisualStudioCodePlugin\build\SmallBasic.VSCode-0.1.0.vsix
+#   1. runhost\Build-RunHost.ps1                 -> runhost\<platform>\ + runhost\javascript\
+#   2. visual_studio_code_plugin\build\Package-Vsix.ps1
+#                                                -> visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.0.vsix
 #                                                   (also refreshes dist\debug\adapter.js used by the VS side)
-#   3. VisualStudioPlugin\src\SmallBasic.Vsix    -> VSIX project build (builds RunHost net48 automatically)
-#   4. VisualStudioPlugin\build\Package-Vsix.ps1 -> VisualStudioPlugin\build\SmallBasic.Vsix.0.1.0.vsix
+#   3. visual_studio_plugin\src\SmallBasic.Vsix    -> VSIX project build (builds RunHost net48 automatically)
+#   4. visual_studio_plugin\build\Package-Vsix.ps1 -> visual_studio_plugin\build\SmallBasic.Vsix.0.1.0.vsix
 #
 # Usage examples:
 #   .\Build-All.ps1                    # full Release build
@@ -28,7 +28,7 @@ $repoRoot = $PSScriptRoot
 # Every RunHost distribution folder exposes its own Build-RunHost.ps1 script.
 # Register new ones here when additional hosts are added.
 $runHostBuildScripts = @(
-    (Join-Path $repoRoot "RunHost\Build-RunHost.ps1")
+    (Join-Path $repoRoot "runhost\Build-RunHost.ps1")
 )
 
 foreach ($scriptPath in $runHostBuildScripts) {
@@ -50,14 +50,14 @@ if ($SkipVsix) {
 # VS Code extension VSIX. This also rebuilds dist\debug\adapter.js and
 # dist\runhost.js, which the Visual Studio side consumes below.
 Write-Host ""
-Write-Host "=== Package-Vsix: VisualStudioCodePlugin ===" -ForegroundColor Yellow
-& (Join-Path $repoRoot "VisualStudioCodePlugin\build\Package-Vsix.ps1")
+Write-Host "=== Package-Vsix: visual_studio_code_plugin ===" -ForegroundColor Yellow
+& (Join-Path $repoRoot "visual_studio_code_plugin\build\Package-Vsix.ps1")
 
 # Visual Studio extension project. Its CopyRunHostOutput target builds
 # SmallBasic.RunHost (net48) and stages it next to the VSIX payload.
 Write-Host ""
 Write-Host "=== Build: SmallBasic.Vsix ($Configuration) ===" -ForegroundColor Yellow
-$vsixProject = Join-Path $repoRoot "VisualStudioPlugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj"
+$vsixProject = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj"
 dotnet build $vsixProject -c $Configuration --nologo
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet build failed for SmallBasic.Vsix"
@@ -65,11 +65,11 @@ if ($LASTEXITCODE -ne 0) {
 
 # Visual Studio extension VSIX.
 Write-Host ""
-Write-Host "=== Package-Vsix: VisualStudioPlugin ===" -ForegroundColor Yellow
-& (Join-Path $repoRoot "VisualStudioPlugin\build\Package-Vsix.ps1") -Configuration $Configuration
+Write-Host "=== Package-Vsix: visual_studio_plugin ===" -ForegroundColor Yellow
+& (Join-Path $repoRoot "visual_studio_plugin\build\Package-Vsix.ps1") -Configuration $Configuration
 
 Write-Host ""
 Write-Host "Build-All completed:" -ForegroundColor Green
-Write-Host "  RunHost\net48, net8.0, net8.0-windows, javascript"
-Write-Host "  VisualStudioCodePlugin\build\SmallBasic.VSCode-0.1.0.vsix"
-Write-Host "  VisualStudioPlugin\build\SmallBasic.Vsix.0.1.0.vsix"
+Write-Host "  runhost\net48, net8.0, net8.0-windows, javascript"
+Write-Host "  visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.0.vsix"
+Write-Host "  visual_studio_plugin\build\SmallBasic.Vsix.0.1.0.vsix"

@@ -1,9 +1,9 @@
-[submodule "SmallBasicRepo/SmallBasicOnline"]
-	path = SmallBasicRepo/SmallBasicOnline
+[submodule "official_repo/online"]
+	path = official_repo/online
 	url = git@github.com:sb/SmallBasic-Online.git
-[submodule "SmallBasicRepo/SmallBasicEditor"]
-	path = SmallBasicRepo/SmallBasicEditor
+[submodule "official_repo/editor"]
+	path = official_repo/editor
 	url = git@github.com:sb/smallbasic-editor.git
-[submodule "SmallBasicRepo/SmallBasicHomeSite"]
-	path = SmallBasicRepo/SmallBasicHomeSite
+[submodule "official_repo/homesite"]
+	path = official_repo/homesite
 	url = git@github.com:sb/SmallBasicWebsite.git

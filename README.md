@@ -85,11 +85,11 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 
 ## 示例程序
 
-`Test/` 目录提供样例：
+`test/` 目录提供样例：
 
-- `Test/Hello/` — 最小文本程序
-- `Test/Tutorial/` — 基础语法练习
-- `Test/Tetris/` — 图形程序（需 Windows + 图形后端运行）
+- `test/hello/` — 最小文本程序
+- `test/tutorial/` — 基础语法练习
+- `test/tetris/` — 图形程序（需 Windows + 图形后端运行）
 
 ## 从源码构建
 
@@ -108,23 +108,23 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 
 | 产物 | 路径 |
 |---|---|
-| RunHost 运行时分发 | `RunHost\net48`、`RunHost\net8.0`、`RunHost\net8.0-windows`、`RunHost\javascript` |
-| VS Code 扩展包 | `VisualStudioCodePlugin\build\SmallBasic.VSCode-0.1.0.vsix` |
-| Visual Studio 扩展包 | `VisualStudioPlugin\build\SmallBasic.Vsix.0.1.0.vsix` |
+| RunHost 运行时分发 | `runhost\net48`、`runhost\net8.0`、`runhost\net8.0-windows`、`runhost\javascript` |
+| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.0.vsix` |
+| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.0.vsix` |
 
 单独构建：
 
 ```powershell
 # VS Code 扩展（构建 + 打包）
-cd VisualStudioCodePlugin
+cd visual_studio_code_plugin
 npm install
 npm run build        # 构建
 npm test             # vitest 测试
 npm run package:vsix # 打包 VSIX
 
 # Visual Studio 扩展
-dotnet build VisualStudioPlugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj -c Release
-.\VisualStudioPlugin\build\Package-Vsix.ps1 -Configuration Release
+dotnet build visual_studio_plugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj -c Release
+.\visual_studio_plugin\build\Package-Vsix.ps1 -Configuration Release
 ```
 
 ## 仓库结构
@@ -132,17 +132,18 @@ dotnet build VisualStudioPlugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj -c Re
 ```
 SmallBasicPlugin/
 ├── Build-All.ps1                  # 一键构建入口
-├── RunHost/                       # RunHost 多平台分发（Build-RunHost.ps1）
-├── VisualStudioCodePlugin/        # VS Code 扩展（npm monorepo）
+├── runhost/                       # RunHost 多平台分发（Build-RunHost.ps1）
+├── visual_studio_code_plugin/        # VS Code 扩展（npm monorepo）
 │   └── packages/
 │       ├── smallbasic-lang-core/  # 语言核心（TS 编译器 + 执行引擎）
 │       └── smallbasic-vscode/     # 扩展本体（含 DAP 调试适配器）
-├── VisualStudioPlugin/            # VS 扩展（经典 VSIX + MEF，net48）
+├── visual_studio_plugin/            # VS 扩展（经典 VSIX + MEF，net48）
 │   ├── src/SmallBasic.Vsix/       # 编辑器集成（着色/补全/悬停/诊断/调试启动）
-│   ├── src/SmallBasic.RunHost/    # 运行宿主（net48/net8.0/net8.0-windows，含 DAP 调试）
+│   ├── src/SmallBasic.runhost/    # 运行宿主（net48/net8.0/net8.0-windows，含 DAP 调试）
 │   └── vendor/SmallBasicEditor/   # 拷贝升级的 Small Basic 编译器（C#）
-├── Test/                          # 示例程序
-└── Doc/                           # 设计文档（01-08）
+├── test/                          # 示例程序
+├── official_repo/                 # 官方源码子模块（editor / homesite / online）
+└── docs/design/                   # 设计文档（01-08）
 ```
 
 ## 已知限制
