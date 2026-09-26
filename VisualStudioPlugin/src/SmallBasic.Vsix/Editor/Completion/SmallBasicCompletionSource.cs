@@ -96,7 +96,8 @@ namespace SmallBasic.Vsix.Editor.Completion
             foreach (MonacoCompletionItem item in items)
             {
                 string label = string.IsNullOrEmpty(item.label) ? string.Empty : item.label;
-                string insertText = string.IsNullOrEmpty(item.insertText?.value) ? label : item.insertText.value;
+                string? suggestedInsertText = item.insertText?.value;
+                string insertText = string.IsNullOrEmpty(suggestedInsertText) ? label : suggestedInsertText!;
                 SmallBasicSnippet? snippet = null;
                 bool hasSnippetSyntax = insertText.IndexOf('$') >= 0;
                 if (hasSnippetSyntax && SmallBasicSnippet.TryParse(insertText, out SmallBasicSnippet? parsedSnippet))

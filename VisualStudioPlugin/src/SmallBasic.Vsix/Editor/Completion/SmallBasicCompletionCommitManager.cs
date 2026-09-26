@@ -17,7 +17,7 @@ namespace SmallBasic.Vsix.Editor.Completion
     [Export(typeof(IAsyncCompletionCommitManagerProvider))]
     [Name("smallbasic snippet completion commit manager")]
     [ContentType("smallbasic")]
-    [TextViewRoles(PredefinedTextViewRoles.Editable)]
+    [TextViewRole(PredefinedTextViewRoles.Editable)]
     internal sealed class SmallBasicCompletionCommitManagerProvider : IAsyncCompletionCommitManagerProvider
     {
         [Import]
