@@ -1,10 +1,29 @@
 import path from "node:path";
 import * as vscode from "vscode";
+import { CSharpRunner } from "../run/csharp-runner";
 
 export class SmallBasicDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
   public constructor(private readonly context: vscode.ExtensionContext) {}
 
-  public createDebugAdapterDescriptor(): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
+  public createDebugAdapterDescriptor(session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
+    const backend = session.configuration.backend === "csharp" ? "csharp" : "javascript";
+
+    if (backend === "csharp") {
+      const host = CSharpRunner.resolveHostCommand(this.context.extensionPath);
+      if (!host) {
+        void vscode.window.showErrorMessage(
+          "未找到可用的 SmallBasic C# 调试宿主。请安装 .NET 8、重新安装完整扩展，" +
+          "或在 smallbasic.csharp.runHostPath 中指定宿主路径。"
+        );
+        return undefined;
+      }
+
+      // The RunHost speaks DAP natively on stdin/stdout in "debug" mode.
+      return new vscode.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
+        cwd: host.cwd
+      });
+    }
+
     const adapterPath = path.join(this.context.extensionPath, "dist", "debug", "adapter.js");
     return new vscode.DebugAdapterExecutable(process.execPath, [adapterPath], {
       cwd: this.context.extensionPath,

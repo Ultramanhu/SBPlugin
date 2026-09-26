@@ -18,8 +18,17 @@ namespace SmallBasic.Vsix.Commands
     /// </summary>
     internal static class SmallBasicDebugLauncher
     {
-        public static void Launch(string programPath)
+        private static bool launchInProgress;
+
+        public static void Launch(string programPath, bool stopOnEntry = false)
         {
+            // Rapid F5 presses (or a second F5 while the Debug Adapter Host is
+            // still taking over) must not stack multiple launches.
+            if (launchInProgress)
+            {
+                return;
+            }
+
             string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicDebugLauncher).Assembly.Location) ?? string.Empty;
             string adapterPath = Path.Combine(extensionDirectory, "DebugAdapter", "adapter.js");
             if (!File.Exists(adapterPath))
@@ -33,15 +42,23 @@ namespace SmallBasic.Vsix.Commands
                 throw new FileNotFoundException("未找到 node.exe。Small Basic 调试适配器需要 Node.js 20 或更高版本。请安装 Node.js 并重新启动 Visual Studio。");
             }
 
-            string launchPath = WriteLaunchConfiguration(programPath, adapterPath, nodePath);
+            string launchPath = WriteLaunchConfiguration(programPath, adapterPath, nodePath, stopOnEntry);
+            launchInProgress = true;
 
             // The current F5 command is still on Visual Studio's command stack.
             // Yield once so DebugAdapterHost.Launch is not invoked re-entrantly.
             ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
-                await Task.Yield();
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                ExecuteLaunchCommand(launchPath);
+                try
+                {
+                    await Task.Yield();
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    ExecuteLaunchCommand(launchPath);
+                }
+                finally
+                {
+                    launchInProgress = false;
+                }
             }).FileAndForget("SmallBasic/LaunchDebugAdapter");
         }
 
@@ -68,7 +85,7 @@ namespace SmallBasic.Vsix.Commands
             }
         }
 
-        private static string WriteLaunchConfiguration(string programPath, string adapterPath, string nodePath)
+        private static string WriteLaunchConfiguration(string programPath, string adapterPath, string nodePath, bool stopOnEntry)
         {
             string directory = Path.Combine(Path.GetTempPath(), "SmallBasicPlugin", "Debug");
             Directory.CreateDirectory(directory);
@@ -82,7 +99,7 @@ namespace SmallBasic.Vsix.Commands
                 new KeyValuePair<string, object>("type", "smallbasic"),
                 new KeyValuePair<string, object>("request", "launch"),
                 new KeyValuePair<string, object>("program", Path.GetFullPath(programPath)),
-                new KeyValuePair<string, object>("stopOnEntry", false),
+                new KeyValuePair<string, object>("stopOnEntry", stopOnEntry),
             };
 
             var json = new StringBuilder();

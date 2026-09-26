@@ -1,9 +1,18 @@
 using System.Globalization;
 using System.IO;
+using SmallBasic.RunHost.Debug;
 using SmallBasic.RunHost.Libraries;
 using SmallBasic.Compiler;
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+
+if (args.Length >= 1 && string.Equals(args[0], "debug", StringComparison.OrdinalIgnoreCase))
+{
+    // DAP debug adapter mode: stdin/stdout carry the protocol, so all program
+    // I/O is bridged through DAP events (see DebugAdapter).
+    await DebugAdapter.RunAsync().ConfigureAwait(false);
+    return;
+}
 
 if (!TryParseArguments(args, out var filePath, out var pauseOnExit, out var errorMessage))
 {
@@ -101,7 +110,7 @@ static bool TryParseArguments(string[] args, out string filePath, out bool pause
 {
     filePath = string.Empty;
     pauseOnExit = args.Any(value => string.Equals(value, "--pause", StringComparison.OrdinalIgnoreCase));
-    errorMessage = "Usage: SmallBasic.RunHost run --file <program.sb> [--pause]";
+    errorMessage = "Usage: SmallBasic.RunHost run --file <program.sb> [--pause] | SmallBasic.RunHost debug";
 
     if (args.Length >= 3 && string.Equals(args[0], "run", StringComparison.OrdinalIgnoreCase))
     {

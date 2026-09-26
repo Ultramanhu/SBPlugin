@@ -6,39 +6,31 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const extensionDirectory = path.resolve(scriptDirectory, "..");
 const repositoryRoot = path.resolve(extensionDirectory, "..", "..", "..");
 const configurations = ["Release", "Debug"];
-const targetFrameworks = ["net48", "net8.0-windows"];
+const hostRoot = path.join(repositoryRoot, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin");
 
-let sourceDirectory;
-for (const configuration of configurations) {
-  for (const targetFramework of targetFrameworks) {
-    const candidate = path.join(
-      repositoryRoot,
-      "VisualStudioPlugin",
-      "src",
-      "SmallBasic.RunHost",
-      "bin",
-      configuration,
-      targetFramework
-    );
-    if (fs.existsSync(path.join(candidate, "SmallBasic.RunHost.exe"))) {
-      sourceDirectory = candidate;
-      break;
+function findHost(targetFramework, fileName) {
+  for (const configuration of configurations) {
+    const candidate = path.join(hostRoot, configuration, targetFramework);
+    if (fs.existsSync(path.join(candidate, fileName))) {
+      return candidate;
     }
   }
 
-  if (sourceDirectory) {
-    break;
-  }
-}
-
-if (!sourceDirectory) {
   throw new Error(
-    "SmallBasic.RunHost.exe was not found. Build VisualStudioPlugin/src/SmallBasic.RunHost first."
+    `${targetFramework}/${fileName} was not found. Build VisualStudioPlugin/src/SmallBasic.RunHost first.`
   );
 }
 
+const windowsSource = findHost("net8.0-windows", "SmallBasic.RunHost.exe");
+const portableSource = findHost("net8.0", "SmallBasic.RunHost.dll");
+
 const destinationDirectory = path.join(extensionDirectory, "RunHost");
 fs.rmSync(destinationDirectory, { recursive: true, force: true });
-fs.mkdirSync(destinationDirectory, { recursive: true });
-fs.cpSync(sourceDirectory, destinationDirectory, { recursive: true, force: true });
-console.log(`Staged C# run host from ${sourceDirectory}`);
+const windowsDestination = path.join(destinationDirectory, "windows");
+const portableDestination = path.join(destinationDirectory, "portable");
+fs.mkdirSync(windowsDestination, { recursive: true });
+fs.mkdirSync(portableDestination, { recursive: true });
+fs.cpSync(windowsSource, windowsDestination, { recursive: true, force: true });
+fs.cpSync(portableSource, portableDestination, { recursive: true, force: true });
+console.log(`Staged Windows C# run host from ${windowsSource}`);
+console.log(`Staged portable C# run host from ${portableSource}`);

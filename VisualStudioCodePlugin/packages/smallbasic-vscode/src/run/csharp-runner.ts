@@ -1,5 +1,13 @@
+import fs from "node:fs";
 import path from "node:path";
 import * as vscode from "vscode";
+
+export interface CSharpHostCommand {
+    executable: string;
+    argumentsPrefix: string[];
+    cwd: string;
+    artifactPath: string;
+}
 
 export class CSharpRunner {
     public static async runActiveDocument(extensionPath: string): Promise<void> {
@@ -28,11 +36,11 @@ export class CSharpRunner {
     }
 
     public static async runProgram(filePath: string, extensionPath: string): Promise<void> {
-        const hostPath = CSharpRunner.resolveHostPath(extensionPath);
-        if (!hostPath) {
+        const host = CSharpRunner.resolveHostCommand(extensionPath);
+        if (!host) {
             void vscode.window.showErrorMessage(
-                "未找到 SmallBasic.RunHost.exe。请在设置中配置 smallbasic.csharp.runHostPath，" +
-                "或构建 VisualStudioPlugin\\src\\SmallBasic.RunHost 项目。"
+                "未找到可用的 SmallBasic C# 运行宿主。请在设置中配置 smallbasic.csharp.runHostPath，" +
+                "或安装 .NET 8 后重新安装完整的扩展包。"
             );
             return;
         }
@@ -44,61 +52,84 @@ export class CSharpRunner {
 
         const terminal = vscode.window.createTerminal({
             name: `SmallBasic (C#): ${path.basename(filePath)}`,
-            shellPath: hostPath,
-            shellArgs: ["run", "--file", filePath, "--pause"],
+            shellPath: host.executable,
+            shellArgs: [...host.argumentsPrefix, "run", "--file", filePath, "--pause"],
             cwd: path.dirname(filePath)
         });
 
         terminal.show(true);
     }
 
-    private static resolveHostPath(extensionPath: string): string | undefined {
+    public static resolveHostCommand(extensionPath: string): CSharpHostCommand | undefined {
         const configPath = vscode.workspace
             .getConfiguration("smallbasic")
             .get<string>("csharp.runHostPath");
 
         if (configPath && CSharpRunner.fileExists(configPath)) {
-            return configPath;
+            return CSharpRunner.toHostCommand(configPath);
         }
 
         const roots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
-        const candidates = [
+        const repositoryCandidates = (root: string, framework: string, fileName: string): string[] => [
+            path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", framework, fileName),
+            path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", framework, fileName),
+            path.join(root, "src", "SmallBasic.RunHost", "bin", "Release", framework, fileName),
+            path.join(root, "src", "SmallBasic.RunHost", "bin", "Debug", framework, fileName),
+            path.resolve(root, "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", framework, fileName),
+            path.resolve(root, "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", framework, fileName)
+        ];
+
+        const developmentRoot = path.resolve(extensionPath, "..", "..", "..");
+        const searchRoots = [developmentRoot, ...roots];
+        const windowsCandidates = [
+            path.join(extensionPath, "RunHost", "windows", "SmallBasic.RunHost.exe"),
             path.join(extensionPath, "RunHost", "SmallBasic.RunHost.exe"),
-            path.resolve(extensionPath, "..", "..", "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", "net8.0-windows", "SmallBasic.RunHost.exe"),
-            path.resolve(extensionPath, "..", "..", "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", "net8.0-windows", "SmallBasic.RunHost.exe"),
-            path.resolve(extensionPath, "..", "..", "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", "net48", "SmallBasic.RunHost.exe"),
-            path.resolve(extensionPath, "..", "..", "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", "net48", "SmallBasic.RunHost.exe"),
-            ...roots.flatMap((root) => [
-                path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", "net8.0-windows", "SmallBasic.RunHost.exe"),
-                path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", "net8.0-windows", "SmallBasic.RunHost.exe"),
-                path.join(root, "src", "SmallBasic.RunHost", "bin", "Release", "net8.0-windows", "SmallBasic.RunHost.exe"),
-                path.join(root, "src", "SmallBasic.RunHost", "bin", "Debug", "net8.0-windows", "SmallBasic.RunHost.exe"),
-                path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", "net48", "SmallBasic.RunHost.exe"),
-                path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", "net48", "SmallBasic.RunHost.exe"),
-                path.join(root, "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", "net48", "SmallBasic.RunHost.exe"),
-                path.join(root, "src", "SmallBasic.RunHost", "bin", "Debug", "net48", "SmallBasic.RunHost.exe"),
-                path.join(root, "src", "SmallBasic.RunHost", "bin", "Release", "net48", "SmallBasic.RunHost.exe"),
-                path.resolve(root, "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", "net48", "SmallBasic.RunHost.exe"),
-                path.resolve(root, "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Release", "net8.0-windows", "SmallBasic.RunHost.exe"),
-                path.resolve(root, "..", "VisualStudioPlugin", "src", "SmallBasic.RunHost", "bin", "Debug", "net8.0-windows", "SmallBasic.RunHost.exe")
+            ...searchRoots.flatMap((root) => [
+                ...repositoryCandidates(root, "net8.0-windows", "SmallBasic.RunHost.exe"),
+                ...repositoryCandidates(root, "net48", "SmallBasic.RunHost.exe")
             ])
         ];
+        const portableCandidates = [
+            path.join(extensionPath, "RunHost", "portable", "SmallBasic.RunHost.dll"),
+            ...searchRoots.flatMap((root) => repositoryCandidates(root, "net8.0", "SmallBasic.RunHost.dll"))
+        ];
+        const candidates = process.platform === "win32"
+            ? [...windowsCandidates, ...portableCandidates]
+            : portableCandidates;
 
         for (const candidate of candidates) {
             if (CSharpRunner.fileExists(candidate)) {
-                return candidate;
+                return CSharpRunner.toHostCommand(candidate);
             }
         }
 
         return undefined;
     }
 
-    private static fileExists(filePath: string): boolean {
-        try {
-            const fs = require("node:fs");
-            return fs.existsSync(filePath);
-        } catch {
-            return false;
+    public static resolveHostPath(extensionPath: string): string | undefined {
+        return CSharpRunner.resolveHostCommand(extensionPath)?.artifactPath;
+    }
+
+    private static toHostCommand(artifactPath: string): CSharpHostCommand {
+        const resolved = path.resolve(artifactPath);
+        if (path.extname(resolved).toLowerCase() === ".dll") {
+            return {
+                executable: "dotnet",
+                argumentsPrefix: [resolved],
+                cwd: path.dirname(resolved),
+                artifactPath: resolved
+            };
         }
+
+        return {
+            executable: resolved,
+            argumentsPrefix: [],
+            cwd: path.dirname(resolved),
+            artifactPath: resolved
+        };
+    }
+
+    private static fileExists(filePath: string): boolean {
+        return fs.existsSync(filePath);
     }
 }

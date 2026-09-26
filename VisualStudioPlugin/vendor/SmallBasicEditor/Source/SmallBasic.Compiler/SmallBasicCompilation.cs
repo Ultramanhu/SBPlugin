@@ -10,6 +10,7 @@ namespace SmallBasic.Compiler
     using SmallBasic.Compiler.Binding;
     using SmallBasic.Compiler.Diagnostics;
     using SmallBasic.Compiler.Parsing;
+    using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Scanning;
     using SmallBasic.Compiler.Services;
     using SmallBasic.Utilities;
@@ -61,5 +62,28 @@ namespace SmallBasic.Compiler
         public MonacoCompletionItem[] ProvideCompletionItems(TextPosition position) => CompletionItemProvider.Provide(this.parser, this.binder, this.Text, position);
 
         public string[] ProvideHover(TextPosition position) => HoverProvider.Provide(this.diagnostics, this.parser, position);
+
+        // Lines (0-based) that contain at least one emitted instruction. Debug
+        // adapters use this to snap breakpoints onto executable statements.
+        public IReadOnlyCollection<int> GetExecutableLines()
+        {
+            var lines = new HashSet<int>();
+            CollectExecutableLines(this.MainModule, lines);
+            foreach (BoundSubModule subModule in this.SubModules.Values)
+            {
+                CollectExecutableLines(subModule.Body, lines);
+            }
+
+            return lines;
+
+            static void CollectExecutableLines(BoundStatementBlock body, HashSet<int> target)
+            {
+                ModuleEmitter emitter = new ModuleEmitter(body);
+                foreach (BaseInstruction instruction in emitter.Instructions)
+                {
+                    target.Add(instruction.Range.Start.Line);
+                }
+            }
+        }
     }
 }

@@ -10,6 +10,8 @@ namespace SmallBasic.Vsix.Commands
     using Microsoft.VisualStudio;
     using Microsoft.VisualStudio.Editor;
     using Microsoft.VisualStudio.OLE.Interop;
+    using Microsoft.VisualStudio.Shell;
+    using Microsoft.VisualStudio.Shell.Interop;
     using Microsoft.VisualStudio.Text;
     using Microsoft.VisualStudio.Text.Editor;
     using Microsoft.VisualStudio.TextManager.Interop;
@@ -59,6 +61,7 @@ namespace SmallBasic.Vsix.Commands
         public int QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText)
         {
             if (pguidCmdGroup == VSConstants.GUID_VSStandardCommandSet97
+                && !this.IsDebuggerActive()
                 && this.IsRunCommand(prgCmds)
                 && this.TryGetSmallBasicDocument(out _))
             {
@@ -75,20 +78,33 @@ namespace SmallBasic.Vsix.Commands
 
         public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
         {
+            // While a debug session is active (break/run mode), every debug key
+            // (F5 continue, F10/F11 stepping, Shift+F5 stop) must reach the Debug
+            // Adapter Host. Claiming them here would launch a second session.
             if (pguidCmdGroup == VSConstants.GUID_VSStandardCommandSet97
-                && (nCmdID == (uint)VSConstants.VSStd97CmdID.Start || nCmdID == (uint)VSConstants.VSStd97CmdID.StartNoDebug)
+                && !this.IsDebuggerActive()
                 && this.TryGetSmallBasicDocument(out ITextDocument? document))
             {
                 if (nCmdID == (uint)VSConstants.VSStd97CmdID.Start)
                 {
-                    this.Debug(document!);
-                }
-                else
-                {
-                    this.Run(document!);
+                    this.Debug(document!, stopOnEntry: false);
+                    return VSConstants.S_OK;
                 }
 
-                return VSConstants.S_OK;
+                if (nCmdID == (uint)VSConstants.VSStd97CmdID.StartNoDebug)
+                {
+                    this.Run(document!);
+                    return VSConstants.S_OK;
+                }
+
+                // Design-time F10/F11: mirror Visual Studio's "step into a new
+                // instance" semantics by launching with stopOnEntry.
+                if (nCmdID == (uint)VSConstants.VSStd97CmdID.StepInto
+                    || nCmdID == (uint)VSConstants.VSStd97CmdID.StepOver)
+                {
+                    this.Debug(document!, stopOnEntry: true);
+                    return VSConstants.S_OK;
+                }
             }
 
             if (this.next != null)
@@ -96,7 +112,7 @@ namespace SmallBasic.Vsix.Commands
                 return this.next.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
             }
 
-            return (int)Constants.OLECMDERR_E_NOTSUPPORTED;
+            return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
         }
 
         private int ForwardQueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText)
@@ -106,14 +122,33 @@ namespace SmallBasic.Vsix.Commands
                 return this.next.QueryStatus(ref pguidCmdGroup, cCmds, prgCmds, pCmdText);
             }
 
-            return (int)Constants.OLECMDERR_E_NOTSUPPORTED;
+            return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
         }
 
         private bool IsRunCommand(OLECMD[] prgCmds)
         {
             return prgCmds.Any(cmd =>
                 cmd.cmdID == (uint)VSConstants.VSStd97CmdID.Start ||
-                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StartNoDebug);
+                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StartNoDebug ||
+                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StepInto ||
+                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StepOver);
+        }
+
+        private bool IsDebuggerActive()
+        {
+            try
+            {
+                if (Package.GetGlobalService(typeof(SDTE)) is EnvDTE.DTE dte && dte.Debugger != null)
+                {
+                    return dte.Debugger.CurrentMode != EnvDTE.dbgDebugMode.dbgDesignMode;
+                }
+            }
+            catch
+            {
+                // DTE not available yet (early startup): assume design mode.
+            }
+
+            return false;
         }
 
         private bool TryGetSmallBasicDocument(out ITextDocument? document)
@@ -151,7 +186,7 @@ namespace SmallBasic.Vsix.Commands
             }
         }
 
-        private void Debug(ITextDocument document)
+        private void Debug(ITextDocument document, bool stopOnEntry)
         {
             try
             {
@@ -171,7 +206,7 @@ namespace SmallBasic.Vsix.Commands
                     return;
                 }
 
-                SmallBasicDebugLauncher.Launch(document.FilePath);
+                SmallBasicDebugLauncher.Launch(document.FilePath, stopOnEntry);
             }
             catch (Exception ex)
             {

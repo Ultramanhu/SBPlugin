@@ -21,11 +21,16 @@
     "@vscode/debugprotocol": "^1.68.0",
     "@vscode/test-electron": "^2.4.1",
     "@vscode/vsce": "^2.25.0",
+    "buffer": "^6.0.3",
     "esbuild": "^0.25.0",
+    "eslint": "^10.11.0",
+    "events": "^3.3.0",
     "jasmine": "^5.5.0",
+    "process": "^0.11.10",
     "pubsub-js": "^1.9.4",
     "tsup": "^8.3.5",
     "typescript": "^5.9.2",
+    "url": "^0.11.4",
     "vitest": "^2.1.9"
   }
 }

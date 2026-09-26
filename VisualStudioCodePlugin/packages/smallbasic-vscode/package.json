@@ -10,6 +10,10 @@
     "vscode": "^1.96.0"
   },
   "main": "./dist/extension.js",
+  "browser": "./dist/web/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": true
+  },
   "categories": [
     "Programming Languages"
   ],
@@ -38,6 +42,11 @@
           "light": "./media/SmallBasic.svg",
           "dark": "./media/SmallBasic.svg"
         }
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "smallbasic"
       }
     ],
     "grammars": [
@@ -78,7 +87,7 @@
         },
         {
           "command": "smallbasic.runCSharp",
-          "when": "resourceLangId == smallbasic",
+          "when": "resourceLangId == smallbasic && !isWeb",
           "group": "navigation"
         }
       ],
@@ -114,11 +123,11 @@
                   "csharp"
                 ],
                 "default": "javascript",
-                "description": "Backend to launch. javascript uses the built-in JS debugger; csharp runs SmallBasic.RunHost.exe (Windows only, run-only)."
+                "description": "Backend to launch. javascript is built in and also works in VS Code for the Web; csharp uses the bundled .NET host (Windows graphics host or portable command-line host on Linux/macOS)."
               },
               "stopOnEntry": {
                 "type": "boolean",
-                "default": false,
+                "default": true,
                 "description": "Break on the first executable line."
               }
             }
@@ -133,18 +142,18 @@
               "name": "SmallBasic: Launch current file (JS debugger)",
               "program": "${file}",
               "backend": "javascript",
-              "stopOnEntry": false
+              "stopOnEntry": true
             }
           },
           {
-            "label": "SmallBasic: Run current file with C# backend (Windows)",
+            "label": "SmallBasic: Debug current file with C# backend",
             "body": {
               "type": "smallbasic",
               "request": "launch",
-              "name": "SmallBasic: Run current file with C# backend",
+              "name": "SmallBasic: Debug current file with C# backend",
               "program": "${file}",
               "backend": "csharp",
-              "stopOnEntry": false
+              "stopOnEntry": true
             }
           }
         ]
@@ -162,7 +171,7 @@
         "smallbasic.csharp.runHostPath": {
           "type": "string",
           "default": "",
-          "description": "Path to SmallBasic.RunHost.exe for the C# runtime backend. If empty, the extension searches common build output locations."
+          "description": "Path to SmallBasic.RunHost.exe or SmallBasic.RunHost.dll for the C# runtime backend. If empty, the extension uses the bundled Windows or portable host."
         }
       }
     }

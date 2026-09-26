@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import {
   Breakpoint,
   ExitedEvent,
@@ -30,6 +28,12 @@ import {
 } from "smallbasic-lang-core";
 
 const THREAD_ID = 1;
+
+export interface DebugSourceAccessor {
+  resolvePath(filePath: string): string;
+  basename(filePath: string): string;
+  readFile(filePath: string): string;
+}
 
 type RunControl =
   | { kind: "continue" }
@@ -109,6 +113,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
   private readonly textWindow = new DebugTextWindow(this);
 
   private configurationDone = false;
+  private executionStarted = false;
   private stopOnEntry = false;
   private running = false;
   private pauseRequested = false;
@@ -116,7 +121,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
   private terminated = false;
   private activeControl: RunControl = { kind: "continue" };
 
-  public constructor() {
+  public constructor(private readonly sources: DebugSourceAccessor) {
     super("smallbasic-debug.log");
     this.setDebuggerLinesStartAt1(true);
     this.setDebuggerColumnsStartAt1(true);
@@ -126,6 +131,8 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     response: DebugProtocol.InitializeResponse,
     _args: DebugProtocol.InitializeRequestArguments
   ): void {
+    this.configurationDone = false;
+    this.executionStarted = false;
     response.body = {
       supportsConfigurationDoneRequest: true,
       supportsEvaluateForHovers: false,
@@ -141,9 +148,9 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     response: DebugProtocol.LaunchResponse,
     args: DebugProtocol.LaunchRequestArguments & { program: string; stopOnEntry?: boolean }
   ): Promise<void> {
-    this.programPath = path.resolve(String(args.program));
+    this.programPath = this.sources.resolvePath(String(args.program));
     this.stopOnEntry = !!args.stopOnEntry;
-    this.configurationDone = false;
+    this.executionStarted = false;
     this.initialLocationChecked = false;
     this.terminated = false;
 
@@ -153,11 +160,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       this.engine.libraries.TextWindow.plugin = this.textWindow;
       this.breakpointMap.set(this.normalizePath(this.programPath), this.verifyBreakpoints(this.programPath, this.breakpointMap.get(this.normalizePath(this.programPath)) ?? []));
       this.sendResponse(response);
-
-      if (!this.stopOnEntry && this.configurationDone) {
-        this.activeControl = { kind: "continue" };
-        this.resumeExecution();
-      }
+      this.startExecutionAfterConfiguration();
     } catch (error) {
       this.sendErrorResponse(response, 2001, error instanceof Error ? error.message : String(error));
     }
@@ -169,29 +172,14 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
   ): void {
     this.configurationDone = true;
     this.sendResponse(response);
-
-    if (!this.engine) {
-      return;
-    }
-
-    if (this.stopOnEntry) {
-      // DAP's entry stop is before the first statement. Calling the engine here
-      // would execute line zero before pausing because its first-line sentinel is
-      // also zero, so publish the stop directly.
-      this.initialLocationChecked = true;
-      this.activeControl = { kind: "continue" };
-      this.sendEvent(new StoppedEvent("entry", THREAD_ID));
-    } else {
-      this.activeControl = { kind: "continue" };
-      this.resumeExecution();
-    }
+    this.startExecutionAfterConfiguration();
   }
 
   protected override setBreakPointsRequest(
     response: DebugProtocol.SetBreakpointsResponse,
     args: DebugProtocol.SetBreakpointsArguments
   ): void {
-    const sourcePath = args.source.path ? path.resolve(args.source.path) : this.programPath;
+    const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
     const requestedLines = args.breakpoints?.map((breakpoint) => breakpoint.line) ?? args.lines ?? [];
     const requested: SessionBreakpoint[] = requestedLines.map((line) => ({ requestedLine: line - 1, verified: false }));
     const verified = sourcePath ? this.verifyBreakpoints(sourcePath, requested) : requested;
@@ -222,7 +210,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
   ): void {
     const stackFrames = this.getExecutionFrames().map((frame, index) => {
       const instruction = this.getInstructionForFrame(frame.moduleName, frame.instructionIndex);
-      const source = new Source(path.basename(this.programPath || "program.sb"), this.programPath);
+      const source = new Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
       return new StackFrame(index + 1, frame.moduleName, source, (instruction?.sourceRange.start.line ?? 0) + 1, (instruction?.sourceRange.start.column ?? 0) + 1);
     });
 
@@ -330,7 +318,10 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       return;
     }
 
-    const value = this.engine?.memory.values[expression];
+    const memory = this.engine?.memory.values;
+    const value = memory
+      ? memory[expression] ?? memory[Object.keys(memory).find((name) => name.toLowerCase() === expression.toLowerCase()) ?? ""]
+      : undefined;
     if (value) {
       response.body = {
         result: value.toDebuggerString(),
@@ -349,22 +340,28 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
 
   public onInputRequested(kind: ValueKind): void {
     this.emitOutput(kind === ValueKind.Number ? "\n[Input] 请输入数字后在 Debug Console 中按回车。\n" : "\n[Input] 请输入文本后在 Debug Console 中按回车。\n");
-    this.sendEvent(new StoppedEvent("pause", THREAD_ID, "Waiting for input"));
+    const stopped: DebugProtocol.StoppedEvent = {
+      seq: 0,
+      type: "event",
+      event: "stopped",
+      body: {
+        reason: "pause",
+        description: "Waiting for input",
+        threadId: THREAD_ID,
+        allThreadsStopped: true
+      }
+    };
+    this.sendEvent(stopped);
   }
 
   private loadCompilation(programPath: string): Compilation {
-    let stat: fs.Stats;
+    let text: string;
     try {
-      stat = fs.statSync(programPath);
+      text = this.sources.readFile(programPath);
     } catch {
       throw new Error(`找不到程序文件: ${programPath}`);
     }
 
-    if (stat.isDirectory()) {
-      throw new Error(`调试目标是一个目录: ${programPath}，请指定具体的 .sb 文件`);
-    }
-
-    const text = fs.readFileSync(programPath, "utf8");
     const compilation = new Compilation(text);
     if (!compilation.isReadyToRun) {
       const message = compilation.diagnostics.map((item) => item.toString()).join("\n");
@@ -410,6 +407,26 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     return [...executableLines].sort((left, right) => left - right);
   }
 
+  private startExecutionAfterConfiguration(): void {
+    if (!this.configurationDone || !this.engine || this.executionStarted) {
+      return;
+    }
+
+    this.executionStarted = true;
+    this.activeControl = { kind: "continue" };
+
+    if (this.stopOnEntry) {
+      // DAP's entry stop is before the first statement. Calling the engine here
+      // would execute line zero before pausing because its first-line sentinel is
+      // also zero, so publish the stop directly.
+      this.initialLocationChecked = true;
+      this.sendEvent(new StoppedEvent("entry", THREAD_ID));
+      return;
+    }
+
+    this.resumeExecution();
+  }
+
   private resumeExecution(): void {
     if (!this.engine || this.running) {
       return;
@@ -427,7 +444,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     }
 
     this.running = true;
-    setImmediate(() => this.executionLoop());
+    setTimeout(() => this.executionLoop(), 0);
   }
 
   private executionLoop(): void {
@@ -577,6 +594,6 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
   }
 
   private normalizePath(filePath: string): string {
-    return path.normalize(filePath).toLowerCase();
+    return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
   }
 }

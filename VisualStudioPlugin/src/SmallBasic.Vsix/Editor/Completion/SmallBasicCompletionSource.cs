@@ -3,7 +3,6 @@ namespace SmallBasic.Vsix.Editor.Completion
     using System;
     using System.Collections.Generic;
     using System.Collections.Immutable;
-    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.VisualStudio.Language.Intellisense;
@@ -18,8 +17,6 @@ namespace SmallBasic.Vsix.Editor.Completion
 
     internal sealed class SmallBasicCompletionSource : IAsyncCompletionSource
     {
-        private static readonly Regex MonacoSnippetPlaceholderPattern = new Regex(@"\$\{\d+:([^}]+)\}", RegexOptions.Compiled);
-
         private readonly ITextView textView;
         private readonly SmallBasicCompilationService compilationService;
         private IReadOnlyDictionary<string, string> details = ImmutableDictionary<string, string>.Empty;
@@ -100,13 +97,22 @@ namespace SmallBasic.Vsix.Editor.Completion
             {
                 string label = string.IsNullOrEmpty(item.label) ? string.Empty : item.label;
                 string insertText = string.IsNullOrEmpty(item.insertText?.value) ? label : item.insertText.value;
-                bool isSnippet = insertText.Contains("${", StringComparison.Ordinal);
-                if (isSnippet)
+                SmallBasicSnippet? snippet = null;
+                bool hasSnippetSyntax = insertText.IndexOf('$') >= 0;
+                if (hasSnippetSyntax && SmallBasicSnippet.TryParse(insertText, out SmallBasicSnippet? parsedSnippet))
                 {
-                    insertText = ConvertSnippetSyntax(insertText);
+                    snippet = parsedSnippet;
+                    insertText = parsedSnippet!.Text;
+                }
+                else if (hasSnippetSyntax)
+                {
+                    // Never expose Monaco placeholders such as ${1:value} as literal source
+                    // text. If a future placeholder form is unsupported, degrade to the
+                    // identifier-only completion requested by the user.
+                    insertText = label;
                 }
 
-                builder.Add(new CompletionItem(
+                var completionItem = new CompletionItem(
                     label,
                     this,
                     ImageElement.Empty,
@@ -119,8 +125,15 @@ namespace SmallBasic.Vsix.Editor.Completion
                     ImmutableArray<ImageElement>.Empty,
                     ImmutableArray<char>.Empty,
                     applicableToSpan,
-                    isSnippet,
-                    false));
+                    false,
+                    false);
+
+                if (snippet != null)
+                {
+                    completionItem.Properties.AddProperty(SmallBasicSnippet.CompletionItemPropertyKey, snippet);
+                }
+
+                builder.Add(completionItem);
 
                 if (!string.IsNullOrEmpty(item.detail))
                 {
@@ -138,23 +151,5 @@ namespace SmallBasic.Vsix.Editor.Completion
                 this.details.TryGetValue(item.DisplayText, out string? detail) ? detail! : item.DisplayText);
         }
 
-        private static string ConvertSnippetSyntax(string insertText)
-        {
-            string converted = MonacoSnippetPlaceholderPattern.Replace(insertText, match =>
-            {
-                string placeholder = match.Groups[1].Value;
-                return "$" + SanitizePlaceholderName(placeholder) + "$";
-            });
-
-            return converted.Contains("$end$", StringComparison.Ordinal)
-                ? converted
-                : converted + "$end$";
-        }
-
-        private static string SanitizePlaceholderName(string placeholder)
-        {
-            string sanitized = Regex.Replace(placeholder, @"[^A-Za-z0-9_]", string.Empty);
-            return string.IsNullOrEmpty(sanitized) ? "value" : sanitized;
-        }
     }
 }

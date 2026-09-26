@@ -1618,9 +1618,26 @@ var require_pubsub = __commonJS({
 // src/debug/adapter.ts
 var import_debugadapter2 = __toESM(require_main());
 
-// src/debug/session.ts
+// src/debug/node-source-accessor.ts
 var import_node_fs = __toESM(require("fs"));
 var import_node_path = __toESM(require("path"));
+var NodeDebugSourceAccessor = class {
+  resolvePath(filePath) {
+    return import_node_path.default.resolve(filePath);
+  }
+  basename(filePath) {
+    return import_node_path.default.basename(filePath);
+  }
+  readFile(filePath) {
+    const stat = import_node_fs.default.statSync(filePath);
+    if (stat.isDirectory()) {
+      throw new Error(`Debug target is a directory: ${filePath}`);
+    }
+    return import_node_fs.default.readFileSync(filePath, "utf8");
+  }
+};
+
+// src/debug/session.ts
 var import_debugadapter = __toESM(require_main());
 
 // ../../vendor/SmallBasicOnline/src/compiler/runtime/values/base-value.ts
@@ -8005,6 +8022,13 @@ var DebugTextWindow = class {
   }
 };
 var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSession {
+  constructor(sources) {
+    super("smallbasic-debug.log");
+    this.sources = sources;
+    this.setDebuggerLinesStartAt1(true);
+    this.setDebuggerColumnsStartAt1(true);
+  }
+  sources;
   programPath = "";
   compilation;
   engine;
@@ -8012,18 +8036,16 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   variableHandles = new import_debugadapter.Handles();
   textWindow = new DebugTextWindow(this);
   configurationDone = false;
+  executionStarted = false;
   stopOnEntry = false;
   running = false;
   pauseRequested = false;
   initialLocationChecked = false;
   terminated = false;
   activeControl = { kind: "continue" };
-  constructor() {
-    super("smallbasic-debug.log");
-    this.setDebuggerLinesStartAt1(true);
-    this.setDebuggerColumnsStartAt1(true);
-  }
   initializeRequest(response, _args) {
+    this.configurationDone = false;
+    this.executionStarted = false;
     response.body = {
       supportsConfigurationDoneRequest: true,
       supportsEvaluateForHovers: false,
@@ -8034,9 +8056,9 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     this.sendEvent(new import_debugadapter.InitializedEvent());
   }
   async launchRequest(response, args) {
-    this.programPath = import_node_path.default.resolve(String(args.program));
+    this.programPath = this.sources.resolvePath(String(args.program));
     this.stopOnEntry = !!args.stopOnEntry;
-    this.configurationDone = false;
+    this.executionStarted = false;
     this.initialLocationChecked = false;
     this.terminated = false;
     try {
@@ -8045,10 +8067,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.engine.libraries.TextWindow.plugin = this.textWindow;
       this.breakpointMap.set(this.normalizePath(this.programPath), this.verifyBreakpoints(this.programPath, this.breakpointMap.get(this.normalizePath(this.programPath)) ?? []));
       this.sendResponse(response);
-      if (!this.stopOnEntry && this.configurationDone) {
-        this.activeControl = { kind: "continue" };
-        this.resumeExecution();
-      }
+      this.startExecutionAfterConfiguration();
     } catch (error) {
       this.sendErrorResponse(response, 2001, error instanceof Error ? error.message : String(error));
     }
@@ -8056,20 +8075,10 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   configurationDoneRequest(response, _args) {
     this.configurationDone = true;
     this.sendResponse(response);
-    if (!this.engine) {
-      return;
-    }
-    if (this.stopOnEntry) {
-      this.initialLocationChecked = true;
-      this.activeControl = { kind: "continue" };
-      this.sendEvent(new import_debugadapter.StoppedEvent("entry", THREAD_ID));
-    } else {
-      this.activeControl = { kind: "continue" };
-      this.resumeExecution();
-    }
+    this.startExecutionAfterConfiguration();
   }
   setBreakPointsRequest(response, args) {
-    const sourcePath = args.source.path ? import_node_path.default.resolve(args.source.path) : this.programPath;
+    const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
     const requestedLines = args.breakpoints?.map((breakpoint) => breakpoint.line) ?? args.lines ?? [];
     const requested = requestedLines.map((line) => ({ requestedLine: line - 1, verified: false }));
     const verified = sourcePath ? this.verifyBreakpoints(sourcePath, requested) : requested;
@@ -8092,7 +8101,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   stackTraceRequest(response, _args) {
     const stackFrames = this.getExecutionFrames().map((frame, index) => {
       const instruction = this.getInstructionForFrame(frame.moduleName, frame.instructionIndex);
-      const source = new import_debugadapter.Source(import_node_path.default.basename(this.programPath || "program.sb"), this.programPath);
+      const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
       return new import_debugadapter.StackFrame(index + 1, frame.moduleName, source, (instruction?.sourceRange.start.line ?? 0) + 1, (instruction?.sourceRange.start.column ?? 0) + 1);
     });
     response.body = {
@@ -8161,7 +8170,8 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.resumeExecution();
       return;
     }
-    const value = this.engine?.memory.values[expression];
+    const memory = this.engine?.memory.values;
+    const value = memory ? memory[expression] ?? memory[Object.keys(memory).find((name) => name.toLowerCase() === expression.toLowerCase()) ?? ""] : void 0;
     if (value) {
       response.body = {
         result: value.toDebuggerString(),
@@ -8177,19 +8187,26 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   }
   onInputRequested(kind) {
     this.emitOutput(kind === 1 /* Number */ ? "\n[Input] \u8BF7\u8F93\u5165\u6570\u5B57\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u8F93\u5165\u6587\u672C\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n");
-    this.sendEvent(new import_debugadapter.StoppedEvent("pause", THREAD_ID, "Waiting for input"));
+    const stopped = {
+      seq: 0,
+      type: "event",
+      event: "stopped",
+      body: {
+        reason: "pause",
+        description: "Waiting for input",
+        threadId: THREAD_ID,
+        allThreadsStopped: true
+      }
+    };
+    this.sendEvent(stopped);
   }
   loadCompilation(programPath) {
-    let stat;
+    let text;
     try {
-      stat = import_node_fs.default.statSync(programPath);
+      text = this.sources.readFile(programPath);
     } catch {
       throw new Error(`\u627E\u4E0D\u5230\u7A0B\u5E8F\u6587\u4EF6: ${programPath}`);
     }
-    if (stat.isDirectory()) {
-      throw new Error(`\u8C03\u8BD5\u76EE\u6807\u662F\u4E00\u4E2A\u76EE\u5F55: ${programPath}\uFF0C\u8BF7\u6307\u5B9A\u5177\u4F53\u7684 .sb \u6587\u4EF6`);
-    }
-    const text = import_node_fs.default.readFileSync(programPath, "utf8");
     const compilation = new Compilation(text);
     if (!compilation.isReadyToRun) {
       const message = compilation.diagnostics.map((item) => item.toString()).join("\n");
@@ -8227,6 +8244,19 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     }
     return [...executableLines].sort((left, right) => left - right);
   }
+  startExecutionAfterConfiguration() {
+    if (!this.configurationDone || !this.engine || this.executionStarted) {
+      return;
+    }
+    this.executionStarted = true;
+    this.activeControl = { kind: "continue" };
+    if (this.stopOnEntry) {
+      this.initialLocationChecked = true;
+      this.sendEvent(new import_debugadapter.StoppedEvent("entry", THREAD_ID));
+      return;
+    }
+    this.resumeExecution();
+  }
   resumeExecution() {
     if (!this.engine || this.running) {
       return;
@@ -8239,7 +8269,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       }
     }
     this.running = true;
-    setImmediate(() => this.executionLoop());
+    setTimeout(() => this.executionLoop(), 0);
   }
   executionLoop() {
     if (!this.engine) {
@@ -8360,9 +8390,14 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     return instructions[instructionIndex];
   }
   normalizePath(filePath) {
-    return import_node_path.default.normalize(filePath).toLowerCase();
+    return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
   }
 };
 
 // src/debug/adapter.ts
-import_debugadapter2.DebugSession.run(SmallBasicDebugSession);
+var NodeSmallBasicDebugSession = class extends SmallBasicDebugSession {
+  constructor() {
+    super(new NodeDebugSourceAccessor());
+  }
+};
+import_debugadapter2.DebugSession.run(NodeSmallBasicDebugSession);
