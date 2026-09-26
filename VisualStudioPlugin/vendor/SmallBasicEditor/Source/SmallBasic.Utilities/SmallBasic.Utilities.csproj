@@ -5,6 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="DocumentationLocales\DocumentationLocales.xml">
+      <LogicalName>SmallBasic.Utilities.DocumentationLocales.xml</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Update="Resources\DiagnosticsResources.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>DiagnosticsResources.Designer.cs</LastGenOutput>

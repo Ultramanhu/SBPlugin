@@ -12,6 +12,7 @@ namespace SmallBasic.Compiler.Services
     using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Scanning;
     using SmallBasic.Utilities;
+    using SmallBasic.Utilities.Resources;
 
     internal static class CompletionItemProvider
     {
@@ -114,6 +115,22 @@ namespace SmallBasic.Compiler.Services
             return items.ToArray();
         }
 
+        private static string GetKeywordDescription(string name)
+        {
+            // Keyword help strings live in the localized documentation
+            // (DocumentationLocales.xml); fall back to the keyword itself.
+            string key;
+            switch (name)
+            {
+                case "For Step": key = "Keywords_Step"; break;
+                case "GoTo": key = "Keywords_Goto"; break;
+                default: key = "Keywords_" + name; break;
+            }
+
+            var description = LibrariesResources.ResourceManager.GetString(key, LibrariesResources.Culture);
+            return string.IsNullOrEmpty(description) ? name : description;
+        }
+
         private static MonacoCompletionItem[] GetItemsBeforeDot(Binder binder, string prefix)
         {
             var items = new List<MonacoCompletionItem>();
@@ -132,7 +149,7 @@ namespace SmallBasic.Compiler.Services
             {
                 if (name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase))
                 {
-                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Snippet, name, name, lines.Join(Environment.NewLine)));
+                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Snippet, name, GetKeywordDescription(name), lines.Join(Environment.NewLine)));
                 }
             }
 

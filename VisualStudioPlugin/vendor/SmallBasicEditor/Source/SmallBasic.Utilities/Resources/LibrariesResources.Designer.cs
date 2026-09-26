@@ -39,7 +39,10 @@ namespace SmallBasic.Utilities.Resources {
         public static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("SmallBasic.Utilities.Resources.LibrariesResources", typeof(LibrariesResources).Assembly);
+                    // LocalizedDocumentationResourceManager serves translated
+                    // documentation (DocumentationLocales.xml) for the active UI
+                    // culture and falls back to the English resources below.
+                    global::System.Resources.ResourceManager temp = new global::SmallBasic.Utilities.Resources.LocalizedDocumentationResourceManager("SmallBasic.Utilities.Resources.LibrariesResources", typeof(LibrariesResources).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Compilation } from "smallbasic-lang-core";
+import { Compilation, resolveDocumentationLocale, setDocumentationLocale } from "smallbasic-lang-core";
 import { registerSmallBasicInlineValues } from "../debug/inline-values";
 import { CompilationCache } from "../language/compilation-cache";
 import { isSmallBasicDocument, publishDiagnostics, registerLanguageFeatures } from "../language/providers";
@@ -12,6 +12,10 @@ export interface PlatformActivation {
 }
 
 export function activateCommon(context: vscode.ExtensionContext, platform: PlatformActivation): void {
+  // Serve localized IntelliSense descriptions for the user's UI language
+  // (falls back to the built-in English documentation when unavailable).
+  setDocumentationLocale(resolveDocumentationLocale(vscode.env.language));
+
   const cache = new CompilationCache();
   const diagnostics = vscode.languages.createDiagnosticCollection("smallbasic");
   const debounceMs = () => vscode.workspace.getConfiguration("smallbasic").get<number>("diagnostics.debounceMs", 150);

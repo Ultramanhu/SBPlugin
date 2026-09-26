@@ -14,3 +14,5 @@ export { Diagnostic, ErrorCode } from "../../../vendor/SmallBasicOnline/src/comp
 export { CompilerPosition, CompilerRange } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/ranges";
 export { TokenKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/tokens";
 export { CompilerUtils } from "../../../vendor/SmallBasicOnline/src/compiler/utils/compiler-utils";
+export { setDocumentationLocale } from "../../../vendor/SmallBasicOnline/src/strings/documentation";
+export { resolveDocumentationLocale } from "../../../vendor/SmallBasicOnline/src/strings/locale";

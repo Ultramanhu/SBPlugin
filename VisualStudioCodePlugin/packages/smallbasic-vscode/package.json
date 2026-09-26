@@ -1,9 +1,9 @@
 {
-  "name": "smallbasic-vscode",
+  "name": "smallbasic",
   "displayName": "SmallBasic for VSCode",
   "description": "SmallBasic language support for VSCode.",
   "version": "0.1.0",
-  "publisher": "smallbasic",
+  "publisher": "ultramanhu",
   "private": true,
   "license": "MIT",
   "engines": {

@@ -4,6 +4,7 @@ import { Compilation } from "../compilation";
 import { CompilerUtils } from "../utils/compiler-utils";
 import { SyntaxNodeVisitor, ObjectAccessExpressionSyntax, SyntaxKind, IdentifierExpressionSyntax } from "../syntax/syntax-nodes";
 import { CommandsParser } from "../syntax/command-parser";
+import { DocumentationResources } from "../../strings/documentation";
 import {
     BaseBoundNode,
     BoundArrayAssignmentStatement,
@@ -225,6 +226,27 @@ export module CompletionService {
         }
     }
 
+    function keywordKey(title: string): string {
+        switch (title) {
+            case "For Step":
+                return "Keywords_Step";
+            case "GoTo":
+                return "Keywords_Goto";
+            default:
+                return `Keywords_${title}`;
+        }
+    }
+
+    function snippet(title: string, insertText: string): Result {
+        const description = DocumentationResources.get(keywordKey(title));
+        return {
+            kind: ResultKind.Snippet,
+            title,
+            description: typeof description === "string" ? description : title,
+            insertText
+        };
+    }
+
     function keywordSnippets(): Result[] {
         return [
             snippet("If", "If ${1:condition} Then\nEndIf"),
@@ -240,15 +262,6 @@ export module CompletionService {
             snippet("Sub", "Sub ${1:name}\nEndSub"),
             snippet("EndSub", "EndSub")
         ];
-    }
-
-    function snippet(title: string, insertText: string): Result {
-        return {
-            kind: ResultKind.Snippet,
-            title,
-            description: title,
-            insertText
-        };
     }
 
     function extractWordAtPosition(text: string, position: CompilerPosition): string {
