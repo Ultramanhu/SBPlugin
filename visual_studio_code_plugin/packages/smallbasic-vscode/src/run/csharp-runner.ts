@@ -82,15 +82,15 @@ export class CSharpRunner {
         const developmentRoot = path.resolve(extensionPath, "..", "..", "..");
         const searchRoots = [developmentRoot, ...roots];
         const windowsCandidates = [
-            path.join(extensionPath, "RunHost", "windows", "SmallBasic.RunHost.exe"),
-            path.join(extensionPath, "RunHost", "SmallBasic.RunHost.exe"),
+            path.join(extensionPath, "runhost", "windows", "SmallBasic.RunHost.exe"),
+            path.join(extensionPath, "runhost", "SmallBasic.RunHost.exe"),
             ...searchRoots.flatMap((root) => [
                 ...repositoryCandidates(root, "net8.0-windows", "SmallBasic.RunHost.exe"),
                 ...repositoryCandidates(root, "net48", "SmallBasic.RunHost.exe")
             ])
         ];
         const portableCandidates = [
-            path.join(extensionPath, "RunHost", "portable", "SmallBasic.RunHost.dll"),
+            path.join(extensionPath, "runhost", "portable", "SmallBasic.RunHost.dll"),
             ...searchRoots.flatMap((root) => repositoryCandidates(root, "net8.0", "SmallBasic.RunHost.dll"))
         ];
         const candidates = process.platform === "win32"

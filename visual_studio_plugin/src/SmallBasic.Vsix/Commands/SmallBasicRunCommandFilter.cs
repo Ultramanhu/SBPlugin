@@ -243,7 +243,7 @@ namespace SmallBasic.Vsix.Commands
         private void StartRunHost(string filePath)
         {
             string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicRunCommandFilter).Assembly.Location) ?? string.Empty;
-            string runHostPath = Path.Combine(extensionDirectory, "RunHost", "SmallBasic.RunHost.exe");
+            string runHostPath = Path.Combine(extensionDirectory, "runhost", "SmallBasic.RunHost.exe");
             if (!File.Exists(runHostPath))
             {
                 MessageBox.Show(

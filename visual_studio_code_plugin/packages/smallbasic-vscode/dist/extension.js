@@ -16131,15 +16131,15 @@ var CSharpRunner = class _CSharpRunner {
     const developmentRoot = import_node_path.default.resolve(extensionPath, "..", "..", "..");
     const searchRoots = [developmentRoot, ...roots];
     const windowsCandidates = [
-      import_node_path.default.join(extensionPath, "RunHost", "windows", "SmallBasic.RunHost.exe"),
-      import_node_path.default.join(extensionPath, "RunHost", "SmallBasic.RunHost.exe"),
+      import_node_path.default.join(extensionPath, "runhost", "windows", "SmallBasic.RunHost.exe"),
+      import_node_path.default.join(extensionPath, "runhost", "SmallBasic.RunHost.exe"),
       ...searchRoots.flatMap((root) => [
         ...repositoryCandidates(root, "net8.0-windows", "SmallBasic.RunHost.exe"),
         ...repositoryCandidates(root, "net48", "SmallBasic.RunHost.exe")
       ])
     ];
     const portableCandidates = [
-      import_node_path.default.join(extensionPath, "RunHost", "portable", "SmallBasic.RunHost.dll"),
+      import_node_path.default.join(extensionPath, "runhost", "portable", "SmallBasic.RunHost.dll"),
       ...searchRoots.flatMap((root) => repositoryCandidates(root, "net8.0", "SmallBasic.RunHost.dll"))
     ];
     const candidates = process.platform === "win32" ? [...windowsCandidates, ...portableCandidates] : portableCandidates;

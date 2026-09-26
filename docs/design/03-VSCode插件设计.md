@@ -106,7 +106,7 @@ visual_studio_code_plugin/
     "configuration": { "properties": {
       "smallbasic.diagnostics.debounceMs": { "type": "number", "default": 150 },
       "smallbasic.csharp.runHostPath": { "type": "string", "default": "",
-        "description": "SmallBasic.RunHost.exe 路径；为空时按常见构建输出或扩展内置 RunHost 目录自动搜索" }
+        "description": "SmallBasic.RunHost.exe 路径；为空时按常见构建输出或扩展内置 runhost 目录自动搜索" }
     }}
   }
 }

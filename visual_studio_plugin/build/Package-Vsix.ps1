@@ -33,7 +33,7 @@ $debugAdapterSource = Join-Path (Split-Path -Parent $repoRoot) "visual_studio_co
 if (-not (Test-Path $debugAdapterSource)) {
     throw "Debug adapter output not found: $debugAdapterSource. Run npm run build in visual_studio_code_plugin first."
 }
-$debugAdapterStaging = Join-Path $stagingRoot "DebugAdapter"
+$debugAdapterStaging = Join-Path $stagingRoot "debugadapter"
 New-Item -ItemType Directory -Path $debugAdapterStaging -Force | Out-Null
 Copy-Item -LiteralPath $debugAdapterSource -Destination (Join-Path $debugAdapterStaging "adapter.js") -Force
 
@@ -76,7 +76,7 @@ $runHostOutput = Join-Path $repoRoot (Join-Path "src\SmallBasic.RunHost" (Join-P
 if (-not (Test-Path (Join-Path $runHostOutput "SmallBasic.RunHost.exe"))) {
     throw "RunHost output not found: $runHostOutput. Build the SmallBasic.RunHost project first."
 }
-$runHostStaging = Join-Path $stagingRoot "RunHost"
+$runHostStaging = Join-Path $stagingRoot "runhost"
 if (Test-Path $runHostStaging) {
     Remove-Item -LiteralPath $runHostStaging -Recurse -Force
 }

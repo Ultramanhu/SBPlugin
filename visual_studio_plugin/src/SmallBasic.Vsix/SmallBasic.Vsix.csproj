@@ -34,7 +34,7 @@
       <SubType>Designer</SubType>
     </None>
     <Content Include="$(DebugAdapterSource)" Condition="Exists('$(DebugAdapterSource)')">
-      <Link>DebugAdapter\adapter.js</Link>
+      <Link>debugadapter\adapter.js</Link>
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -56,11 +56,11 @@
       <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
     </ItemGroup>
 
-    <RemoveDir Directories="$(TargetDir)RunHost" />
-    <MakeDir Directories="$(TargetDir)RunHost" />
+    <RemoveDir Directories="$(TargetDir)runhost" />
+    <MakeDir Directories="$(TargetDir)runhost" />
     <Copy
       SourceFiles="@(RunHostFiles)"
-      DestinationFiles="@(RunHostFiles->'$(TargetDir)RunHost\%(RecursiveDir)%(Filename)%(Extension)')"
+      DestinationFiles="@(RunHostFiles->'$(TargetDir)runhost\%(RecursiveDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true" />
   </Target>
 </Project>

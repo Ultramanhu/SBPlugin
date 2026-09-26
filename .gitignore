@@ -16,6 +16,6 @@ obj
 node_modules
 wwwroot
 out
-visual_studio_code_plugin/packages/smallbasic-vscode/RunHost/
+visual_studio_code_plugin/packages/smallbasic-vscode/runhost/
 .gitignore
 

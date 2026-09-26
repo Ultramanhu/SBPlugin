@@ -30,7 +30,7 @@ namespace SmallBasic.Vsix.Commands
             }
 
             string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicDebugLauncher).Assembly.Location) ?? string.Empty;
-            string adapterPath = Path.Combine(extensionDirectory, "DebugAdapter", "adapter.js");
+            string adapterPath = Path.Combine(extensionDirectory, "debugadapter", "adapter.js");
             if (!File.Exists(adapterPath))
             {
                 throw new FileNotFoundException("未找到 Small Basic 调试适配器。请重新生成并安装完整的 VSIX。", adapterPath);

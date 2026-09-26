@@ -22,7 +22,7 @@
     "LICENSE.txt",
     "language-configuration.json",
     "media/**",
-    "RunHost/**",
+    "runhost/**",
     "snippets/**",
     "syntaxes/**"
   ],

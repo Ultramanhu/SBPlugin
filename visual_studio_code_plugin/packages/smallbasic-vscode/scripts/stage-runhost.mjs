@@ -24,7 +24,7 @@ function findHost(targetFramework, fileName) {
 const windowsSource = findHost("net8.0-windows", "SmallBasic.RunHost.exe");
 const portableSource = findHost("net8.0", "SmallBasic.RunHost.dll");
 
-const destinationDirectory = path.join(extensionDirectory, "RunHost");
+const destinationDirectory = path.join(extensionDirectory, "runhost");
 fs.rmSync(destinationDirectory, { recursive: true, force: true });
 const windowsDestination = path.join(destinationDirectory, "windows");
 const portableDestination = path.join(destinationDirectory, "portable");
